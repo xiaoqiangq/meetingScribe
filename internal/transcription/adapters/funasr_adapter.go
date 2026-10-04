@@ -136,6 +136,16 @@ func (a *FunASRAdapter) Transcribe(ctx context.Context, input interfaces.AudioIn
 	if !qwen {
 		args = append(args, "--device", device, "--model", model)
 	} else {
+		language, _ := params["language"].(string)
+		if language == "" {
+			language = "auto"
+		}
+		switch language {
+		case "auto", "zh", "en", "yue", "fr", "de", "it", "ja", "ko", "pt", "ru", "es":
+		default:
+			return nil, fmt.Errorf("unsupported Qwen timestamp language %q", language)
+		}
+		args = append(args, "--language", language)
 		chunkManager, _ := params["qwen_chunk_manager"].(bool)
 		mergeSeconds, _ := params["qwen_merge_vad_seconds"].(int)
 		if chunkManager {

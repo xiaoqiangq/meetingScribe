@@ -1,3 +1,4 @@
+import { LanguageSwitcher } from './i18n/LanguageSwitcher'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -18,6 +19,7 @@ const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <LanguageSwitcher />
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <BrowserRouter>

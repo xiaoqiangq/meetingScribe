@@ -1,15 +1,14 @@
+import { t as translateUI } from "@/i18n";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useState } from "react";
 import { buildSummaryContent } from "../components/audio-detail/summaryTranscript";
-
 export interface SummaryTemplate {
     id: string;
     name: string;
     model: string;
     prompt: string;
 }
-
 export function useSummaryTemplates() {
     const { getAuthHeaders } = useAuth();
     return useQuery({
@@ -18,13 +17,13 @@ export function useSummaryTemplates() {
             const response = await fetch("/api/v1/summaries", {
                 headers: getAuthHeaders(),
             });
-            if (!response.ok) throw new Error("Failed to load summary templates");
+            if (!response.ok)
+                throw new Error("Failed to load summary templates");
             return response.json() as Promise<SummaryTemplate[]>;
         },
         staleTime: 5 * 60 * 1000, // Templates don't change often
     });
 }
-
 export function useExistingSummary(audioId: string, enabled = true) {
     const { getAuthHeaders } = useAuth();
     return useQuery({
@@ -33,14 +32,16 @@ export function useExistingSummary(audioId: string, enabled = true) {
             const response = await fetch(`/api/v1/transcription/${audioId}/summary`, {
                 headers: getAuthHeaders(),
             });
-            if (!response.ok) throw new Error('Failed to load saved summary');
-            return response.json() as Promise<{ content: string }>;
+            if (!response.ok)
+                throw new Error('Failed to load saved summary');
+            return response.json() as Promise<{
+                content: string;
+            }>;
         },
         retry: false,
         enabled,
     });
 }
-
 export interface SummaryHistoryEntry {
     id: string;
     template_id: string | null;
@@ -49,34 +50,30 @@ export interface SummaryHistoryEntry {
     content: string;
     created_at: string;
 }
-
 export function useSummaryHistory(audioId: string, enabled: boolean) {
     const { getAuthHeaders } = useAuth();
     return useQuery({
         queryKey: ['summaryHistory', audioId],
         queryFn: async () => {
             const response = await fetch(`/api/v1/transcription/${audioId}/summary/history`, { headers: getAuthHeaders() });
-            if (!response.ok) throw new Error('无法读取历史纪要');
+            if (!response.ok)
+                throw new Error(translateUI("\u65E0\u6CD5\u8BFB\u53D6\u5386\u53F2\u7EAA\u8981"));
             return response.json() as Promise<SummaryHistoryEntry[]>;
         },
         enabled,
     });
 }
-
 export function useSummarizer(audioId: string) {
     const { getAuthHeaders } = useAuth();
     const queryClient = useQueryClient();
     const [isStreaming, setIsStreaming] = useState(false);
     const [streamContent, setStreamContent] = useState("");
     const [error, setError] = useState<string | null>(null);
-
     const generateSummary = async (templateId: string, model: string, prompt: string, transcriptText: string) => {
         setIsStreaming(true);
         setStreamContent("");
         setError(null);
-
         const combinedContent = buildSummaryContent(transcriptText, prompt);
-
         try {
             const res = await fetch('/api/v1/summarize', {
                 method: 'POST',
@@ -88,16 +85,14 @@ export function useSummarizer(audioId: string) {
                     template_id: templateId
                 }),
             });
-
-            if (!res.ok) throw new Error(`会议纪要请求失败（${res.status}）`);
+            if (!res.ok)
+                throw new Error((translateUI("\u4F1A\u8BAE\u7EAA\u8981\u8BF7\u6C42\u5931\u8D25\uFF08") + res.status + "\uFF09"));
             if (!res.body) {
                 throw new Error('Failed to start summary stream.');
             }
-
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
             let completedContent = '';
-
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) {
@@ -114,18 +109,18 @@ export function useSummarizer(audioId: string) {
                     setStreamContent(prev => prev + chunk);
                 }
             }
-
             // Invalidate summary query after successful generation
-            if (completedContent) queryClient.setQueryData(["summary", audioId], { content: completedContent });
+            if (completedContent)
+                queryClient.setQueryData(["summary", audioId], { content: completedContent });
             await queryClient.invalidateQueries({ queryKey: ["summary", audioId] });
             await queryClient.invalidateQueries({ queryKey: ['summaryHistory', audioId] });
-
-        } catch (e) {
+        }
+        catch (e) {
             setError(e instanceof Error ? e.message : "Summary generation failed");
-        } finally {
+        }
+        finally {
             setIsStreaming(false);
         }
     };
-
     return { generateSummary, isStreaming, streamContent, error };
 }

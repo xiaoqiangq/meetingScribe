@@ -12,6 +12,7 @@ Built on [Scriberr](https://github.com/rishikanthc/Scriberr). Speech recognition
 
 | Feature | Behavior |
 | --- | --- |
+| Interface and language | English by default; persistent English / 中文 switch; audio language chosen independently |
 | Short recordings | Diarize the full recording and produce timed transcripts |
 | Long meetings | Manually divide topics and diarize them sequentially with independent caches |
 | Speaker review | Keep topic-local labels and propose links for human confirmation |
@@ -28,7 +29,7 @@ Built on [Scriberr](https://github.com/rishikanthc/Scriberr). Speech recognition
 - **Reviewable identity suggestions**: Native features from the same Nemotron checkpoint propose names and links for listening and confirmation.
 - **Traceable minutes**: Sourced and clean views, selectable templates and generation history connect review with sharing.
 
-[Strengths and practical limits](docs/ADVANTAGES.en.md) explains language support, speaker capacity, topics and performance evidence. The current bridge forces Chinese; cross-topic links require confirmation. Matched commercial comparisons have not been measured.
+[Strengths and practical limits](docs/ADVANTAGES.en.md) explains language support, speaker capacity, topics and performance evidence. The current bridge offers automatic detection and 11 selectable audio languages; cross-topic links require confirmation. Matched commercial comparisons have not been measured.
 
 ## Model strengths behind the workflow
 
@@ -39,7 +40,7 @@ Built on [Scriberr](https://github.com/rishikanthc/Scriberr). Speech recognition
 | **Qwen3-ForcedAligner-0.6B** | Aligns supplied text to audio; upstream supports 11 languages | Word/token timestamps for highlighting, Listen seeking and attribution using Nemotron intervals |
 | **FSMN-VAD** | Compact speech/silence detector; deployed main weights are about 1.72 MB | Pause-aware chunk planning while preserving the original audio timeline |
 
-[Model strengths and integration details](docs/MODELS.en.md#why-these-models) includes official sources and practical limits. Upstream streaming and multilingual capabilities are distinct from this application's current Chinese upload workflow; they do not imply live transcription or fully validated multilingual support here.
+[Model strengths and integration details](docs/MODELS.en.md#why-these-models) includes official sources and practical limits. The upload workflow offers auto-detection and 11 audio language choices. Upstream streaming capability does not imply live transcription here; most language choices still need individual acceptance testing.
 
 ## Complete processing pipeline
 

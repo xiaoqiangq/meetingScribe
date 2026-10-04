@@ -5,10 +5,45 @@ import json
 import tempfile
 from pathlib import Path
 
-from qwen3_transcribe import convert_qwen_result, _save_chunk_outputs, _aligned_words
+from qwen3_transcribe import convert_qwen_result, _save_chunk_outputs, _aligned_words, qwen_language, detected_language, join_chunk_texts, _fix_funasr_timestamp_units
+from types import SimpleNamespace
+from unittest.mock import patch
+import sys
 
 
 class QwenConversionTests(unittest.TestCase):
+    def test_spoken_language_mapping_and_detection(self):
+        self.assertIsNone(qwen_language("auto"))
+        self.assertEqual(qwen_language("en"), "English")
+        self.assertEqual(qwen_language("zh"), "Chinese")
+        self.assertEqual(qwen_language("yue"), "Cantonese")
+        with self.assertRaises(ValueError):
+            qwen_language("ar")
+        self.assertEqual(detected_language(["English"], "auto"), "en")
+        self.assertEqual(detected_language(["English", "Chinese"], "auto"), "mul")
+        self.assertEqual(detected_language([], "auto"), "und")
+
+    def test_legacy_adapter_forwards_selected_language_and_preserves_milliseconds(self):
+        for code, expected in [("en", "English"), ("zh", "Chinese"), ("auto", None)]:
+            captured = []
+            def original(**kwargs):
+                captured.append(kwargs["language"])
+                return [SimpleNamespace(text="Hello", language="English", time_stamps=SimpleNamespace(items=[SimpleNamespace(start_time=.12, end_time=.42)]))]
+            qwen = SimpleNamespace(transcribe=original)
+            model = SimpleNamespace(model=SimpleNamespace(qwen3_asr_model=qwen))
+            detected = []
+            with patch.dict(sys.modules, {"funasr": SimpleNamespace(__version__="1.4.16")}):
+                _fix_funasr_timestamp_units(model, code, detected)
+                result = qwen.transcribe(language="Chinese")
+            self.assertEqual(captured, [expected])
+            self.assertEqual(detected, ["English"])
+            self.assertEqual(result[0].time_stamps.items[0].start_time, 120)
+
+    def test_english_chunks_keep_word_boundaries(self):
+        parts = [{"text": "Hello world."}, {"text": "Next sentence."}]
+        self.assertEqual(join_chunk_texts(parts, "en"), "Hello world. Next sentence.")
+        self.assertEqual(join_chunk_texts([{"text": "你好。"}, {"text": "下一句。"}], "zh"), "你好。下一句。")
+
     def test_repeated_ok_keeps_punctuation_on_one_actual_model_interval(self):
         text = "对，OK，OK。然后"
         stamps = [[0, 100], [100, 400], [400, 500], [500, 600]]

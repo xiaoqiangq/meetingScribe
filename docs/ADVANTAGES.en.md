@@ -8,7 +8,7 @@ Huiji P connects transcription, speaker timelines, timed playback and meeting mi
 
 Qwen3-ASR-1.7B transcribes speech; Nemotron-3-Diarization supplies speaker intervals; Qwen3-ForcedAligner-0.6B aligns text with audio; FSMN-VAD locates speech and silence. Their outputs support chunk planning, timed review and speaker assignment.
 
-Qwen officially supports 30 languages and 22 Chinese dialects or accents, including Chinese, English, Cantonese, Wu and Minnan. **The current application bridge forces Chinese.** English-only sessions, language switching and individual dialects have not been systematically validated in this application. [Qwen model card](https://huggingface.co/Qwen/Qwen3-ASR-1.7B)
+Qwen officially supports 30 languages and 22 Chinese dialects or accents, including Chinese, English, Cantonese, Wu and Minnan. **The application now offers automatic detection and 11 explicit audio language choices.** A short English sample passed explicit-English and auto-detection inference; full English meetings and individual dialects have not been systematically evaluated. [Qwen model card](https://huggingface.co/Qwen/Qwen3-ASR-1.7B)
 
 Nemotron supports up to eight speaker channels per run and overlapping speech. Its anonymous labels do not identify names. Channel capacity does not guarantee accuracy for eight participants. [NVIDIA model card](https://huggingface.co/nvidia/Nemotron-3-Diarization)
 

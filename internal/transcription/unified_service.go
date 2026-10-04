@@ -608,8 +608,15 @@ func (u *UnifiedTranscriptionService) convertParametersForModel(params models.Wh
 		if model == "" {
 			model = "paraformer-zh"
 		}
+		language := "zh"
+		if model == "Qwen/Qwen3-ASR-1.7B" {
+			language = "auto"
+			if params.Language != nil && *params.Language != "" {
+				language = *params.Language
+			}
+		}
 		return map[string]interface{}{
-			"model": model, "device": params.Device, "language": "zh",
+			"model": model, "device": params.Device, "language": language,
 			"native_speakers":        params.Diarize && params.DiarizeModel == DiarizeFunASRCAMPP,
 			"qwen_merge_vad_seconds": params.QwenMergeVADSeconds,
 			"qwen_chunk_manager":     params.QwenChunkManager,

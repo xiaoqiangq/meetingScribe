@@ -1,3 +1,4 @@
+import { t as translateUI } from "@/i18n";
 import { useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { TranscriptView } from "@/components/transcript/TranscriptView";
@@ -14,7 +15,6 @@ import { X, StickyNote } from "lucide-react";
 import type { Transcript } from "@/features/transcription/hooks/useAudioDetail";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
-
 interface TranscriptSectionProps {
     audioId: string;
     currentWordIndex: number | null;
@@ -34,48 +34,22 @@ interface TranscriptSectionProps {
     setDownloadDialogOpen: (open: boolean) => void;
     downloadFormat: 'txt' | 'json';
 }
-
-export function TranscriptSection({
-    audioId,
-    currentWordIndex,
-    currentTime,
-    isPlaying,
-    onSeek,
-    transcript,
-    speakerMappings,
-    transcriptMode,
-    autoScrollEnabled,
-    notesOpen,
-    setNotesOpen,
-    speakerRenameOpen,
-    setSpeakerRenameOpen,
-    downloadDialogOpen,
-    setDownloadDialogOpen,
-    downloadFormat,
-    className
-}: TranscriptSectionProps & { className?: string }) {
+export function TranscriptSection({ audioId, currentWordIndex, currentTime, isPlaying, onSeek, transcript, speakerMappings, transcriptMode, autoScrollEnabled, notesOpen, setNotesOpen, speakerRenameOpen, setSpeakerRenameOpen, downloadDialogOpen, setDownloadDialogOpen, downloadFormat, className }: TranscriptSectionProps & {
+    className?: string;
+}) {
     const isMobile = useIsMobile();
     const isDesktop = useIsDesktop();
     const queryClient = useQueryClient();
-
     // Data hooks
     const { data: notes = [] } = useNotes(audioId);
     const { mutate: createNote } = useCreateNote(audioId);
     const { mutateAsync: updateNote } = useUpdateNote(audioId);
     const { mutateAsync: deleteNote } = useDeleteNote(audioId);
-
     // Refs
     const transcriptRef = useRef<HTMLDivElement>(null);
     const highlightedWordRef = useRef<HTMLSpanElement>(null);
-
     // Unified Selection Hook for both desktop and mobile
-    const {
-        menuState,
-        showEditor,
-        openEditor,
-        closeEditor
-    } = useSelectionMenu(transcriptRef);
-
+    const { menuState, showEditor, openEditor, closeEditor } = useSelectionMenu(transcriptRef);
     // Auto-scroll logic
     useEffect(() => {
         if (currentWordIndex !== null && highlightedWordRef.current && autoScrollEnabled) {
@@ -85,7 +59,6 @@ export function TranscriptSection({
             const buffer = viewportHeight * 0.2; // 20%
             const isAboveView = highlightedRect.top < buffer;
             const isBelowView = highlightedRect.bottom > (viewportHeight - buffer);
-
             if (isAboveView || isBelowView) {
                 highlightedElement.scrollIntoView({
                     behavior: 'smooth',
@@ -94,22 +67,26 @@ export function TranscriptSection({
             }
         }
     }, [currentWordIndex, autoScrollEnabled]);
-
     useEffect(() => {
         // Only enable click-to-seek on desktop devices with fine pointer
-        if (!isDesktop) return;
+        if (!isDesktop)
+            return;
         const el = transcriptRef.current;
-        if (!el) return;
+        if (!el)
+            return;
         const onClick = (e: MouseEvent) => {
-            if (!(e.metaKey || e.ctrlKey)) return;
+            if (!(e.metaKey || e.ctrlKey))
+                return;
             const target = e.target as HTMLElement | null;
-            if (!target) return;
+            if (!target)
+                return;
             const wordEl = target.closest('span[data-word-index]') as HTMLElement | null;
-            if (!wordEl) return;
+            if (!wordEl)
+                return;
             const startAttr = wordEl.getAttribute('data-start');
             const start = startAttr ? parseFloat(startAttr) : NaN;
-            if (isNaN(start)) return;
-
+            if (isNaN(start))
+                return;
             e.preventDefault();
             e.stopPropagation();
             onSeek(start);
@@ -117,19 +94,19 @@ export function TranscriptSection({
         el.addEventListener('click', onClick);
         return () => el.removeEventListener('click', onClick);
     }, [onSeek, isDesktop]);
-
     // Helpers
     const getDetectedSpeakers = () => {
         const speakers = new Set<string>();
         transcript?.word_segments?.forEach(word => {
-            if (word.speaker) speakers.add(word.speaker);
+            if (word.speaker)
+                speakers.add(word.speaker);
         });
         transcript?.segments?.forEach(segment => {
-            if (segment.speaker) speakers.add(segment.speaker);
+            if (segment.speaker)
+                speakers.add(segment.speaker);
         });
         return Array.from(speakers);
     };
-
     const handleSaveNote = (content: string) => {
         if (menuState) {
             createNote({
@@ -144,133 +121,72 @@ export function TranscriptSection({
             setNotesOpen(true);
         }
     };
-
     const handleListenFromHere = () => {
         if (menuState) {
             onSeek(menuState.startTime);
             closeEditor();
         }
     };
-
-    if (!transcript) return null;
-
-    return (
-        <div className="md:glass-card md:rounded-[var(--radius-card)] md:border-[var(--border-subtle)] md:shadow-[var(--shadow-card)] md:hover:shadow-[var(--shadow-float)] p-4 md:p-6 min-h-[500px] transition-shadow">
-            {/* 
-                  TOOLBAR REMOVED -> Moved to Context Menu 
-                */}
+    if (!transcript)
+        return null;
+    return (<div className="md:glass-card md:rounded-[var(--radius-card)] md:border-[var(--border-subtle)] md:shadow-[var(--shadow-card)] md:hover:shadow-[var(--shadow-float)] p-4 md:p-6 min-h-[500px] transition-shadow">
+            {/*
+          TOOLBAR REMOVED -> Moved to Context Menu
+        */}
 
             {/* Transcript Content - Systematic Typography */}
-            <div
-                className={cn("relative font-sans", className)}
-                style={{
-                    // Allow text selection to work in children
-                    WebkitUserSelect: 'text',
-                    userSelect: 'text'
-                }}
-            >
+            <div className={cn("relative font-sans", className)} style={{
+            // Allow text selection to work in children
+            WebkitUserSelect: 'text',
+            userSelect: 'text'
+        }}>
                 <div className="w-full text-[var(--text-secondary)] leading-relaxed">
-                    <div
-                        ref={transcriptRef}
-                        className="relative"
-                        style={{
-                            // Ensure this container doesn't interfere with touch events
-                            touchAction: 'pan-y pinch-zoom'
-                        }}
-                    >
-                        <TranscriptView
-                            transcript={transcript}
-                            mode={transcriptMode}
-                            currentWordIndex={currentWordIndex}
-                            currentTime={currentTime}
-                            isPlaying={isPlaying}
-                            notes={notes}
-                            onSeek={onSeek}
-                            highlightedWordRef={highlightedWordRef}
-                            speakerMappings={speakerMappings}
-                            autoScrollEnabled={autoScrollEnabled}
-                        />
+                    <div ref={transcriptRef} className="relative" style={{
+            // Ensure this container doesn't interfere with touch events
+            touchAction: 'pan-y pinch-zoom'
+        }}>
+                        <TranscriptView transcript={transcript} mode={transcriptMode} currentWordIndex={currentWordIndex} currentTime={currentTime} isPlaying={isPlaying} notes={notes} onSeek={onSeek} highlightedWordRef={highlightedWordRef} speakerMappings={speakerMappings} autoScrollEnabled={autoScrollEnabled}/>
                     </div>
                 </div>
             </div>
 
             {/* Download Dialog */}
-            <DownloadDialog
-                audioId={audioId}
-                isOpen={downloadDialogOpen}
-                onClose={setDownloadDialogOpen}
-                initialFormat={downloadFormat}
-            />
+            <DownloadDialog audioId={audioId} isOpen={downloadDialogOpen} onClose={setDownloadDialogOpen} initialFormat={downloadFormat}/>
 
             {/* Speaker Rename Dialog */}
-            <SpeakerRenameDialog
-                open={speakerRenameOpen}
-                onOpenChange={setSpeakerRenameOpen}
-                transcriptionId={audioId}
-                initialSpeakers={getDetectedSpeakers()}
-                onSpeakerMappingsUpdate={() => {
-                    queryClient.invalidateQueries({ queryKey: ["speakerMappings", audioId] });
-                }}
-            />
+            <SpeakerRenameDialog open={speakerRenameOpen} onOpenChange={setSpeakerRenameOpen} transcriptionId={audioId} initialSpeakers={getDetectedSpeakers()} onSpeakerMappingsUpdate={() => {
+            queryClient.invalidateQueries({ queryKey: ["speakerMappings", audioId] });
+        }}/>
             {/* Portals */}
-            {createPortal(
-                <>
+            {createPortal(<>
                     {/* Selection Menu Bubble (Glass) - Unified for desktop and mobile */}
-                    {!showEditor && (
-                        <TranscriptSelectionMenu
-                            menuState={menuState}
-                            onAddNote={openEditor}
-                            onListenFromHere={handleListenFromHere}
-                        />
-                    )}
+                    {!showEditor && (<TranscriptSelectionMenu menuState={menuState} onAddNote={openEditor} onListenFromHere={handleListenFromHere}/>)}
 
                     {/* Note Editor Dialog */}
-                    <NoteEditorDialog
-                        isOpen={showEditor}
-                        quote={menuState?.selectedText || ""}
-                        position={menuState ? { x: menuState.x, y: menuState.y } : { x: 0, y: 0 }}
-                        onSave={handleSaveNote}
-                        onCancel={closeEditor}
-                    />
+                    <NoteEditorDialog isOpen={showEditor} quote={menuState?.selectedText || ""} position={menuState ? { x: menuState.x, y: menuState.y } : { x: 0, y: 0 }} onSave={handleSaveNote} onCancel={closeEditor}/>
 
                     {/* Notes Sidebar - Premium Drawer */}
-                    {notesOpen && (
-                        <div className="fixed inset-y-0 right-0 w-[90vw] max-w-[400px] bg-[var(--bg-card)] border-l border-[var(--border-subtle)] shadow-[var(--shadow-float)] z-[9990] transition-transform duration-300 transform-gpu">
+                    {notesOpen && (<div className="fixed inset-y-0 right-0 w-[90vw] max-w-[400px] bg-[var(--bg-card)] border-l border-[var(--border-subtle)] shadow-[var(--shadow-float)] z-[9990] transition-transform duration-300 transform-gpu">
                             <div className="h-full flex flex-col">
                                 <div className="px-6 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between">
                                     <h3 className="font-bold text-[var(--text-primary)] flex items-center gap-2 text-lg">
-                                        <StickyNote className="h-5 w-5 text-[var(--brand-solid)]" />
-                                        Notes
-                                        <span className="ml-1 text-xs font-bold rounded-full px-2 py-0.5 bg-[var(--bg-main)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+                                        <StickyNote className="h-5 w-5 text-[var(--brand-solid)]"/>{translateUI("Notes")}<span className="ml-1 text-xs font-bold rounded-full px-2 py-0.5 bg-[var(--bg-main)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
                                             {notes.length}
                                         </span>
                                     </h3>
-                                    <button
-                                        type="button"
-                                        onClick={() => setNotesOpen(false)}
-                                        className="h-8 w-8 inline-flex items-center justify-center rounded-[var(--radius-btn)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-main)] transition-colors"
-                                        aria-label="Close notes"
-                                    >
-                                        <X className="h-5 w-5" />
+                                    <button type="button" onClick={() => setNotesOpen(false)} className="h-8 w-8 inline-flex items-center justify-center rounded-[var(--radius-btn)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-main)] transition-colors" aria-label={translateUI("Close notes")}>
+                                        <X className="h-5 w-5"/>
                                     </button>
                                 </div>
                                 <div className="flex-1 overflow-y-auto px-6 py-4">
-                                    <NotesSidebar
-                                        notes={notes}
-                                        onEdit={(id, content) => updateNote({ id, content })}
-                                        onDelete={(id) => deleteNote(id)}
-                                        onJumpTo={(t) => {
-                                            onSeek(t);
-                                            if (isMobile) setNotesOpen(false);
-                                        }}
-                                    />
+                                    <NotesSidebar notes={notes} onEdit={(id, content) => updateNote({ id, content })} onDelete={(id) => deleteNote(id)} onJumpTo={(t) => {
+                    onSeek(t);
+                    if (isMobile)
+                        setNotesOpen(false);
+                }}/>
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </>,
-                document.body
-            )}
-        </div>
-    );
+                        </div>)}
+                </>, document.body)}
+        </div>);
 }

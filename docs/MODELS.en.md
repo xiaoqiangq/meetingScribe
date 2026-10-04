@@ -20,7 +20,7 @@ Sizes describe main weight files from the existing deployment, in decimal units.
 
 The upstream model supports 30 languages, 22 Chinese dialects/accents and regional English accents. Qwen reports robustness on challenging acoustic inputs. Open weights enable local inference and inspection of the integration. [Official model card](https://huggingface.co/Qwen/Qwen3-ASR-1.7B)
 
-This coverage motivates its use for Chinese meetings with regional speech. It does not establish accuracy for every dialect or recording condition. The current bridge forces Chinese; additional language modes require configuration changes and acceptance tests. Upstream supports offline and streaming inference, while Huiji P currently exposes uploaded-recording processing.
+This coverage motivates its use for Chinese meetings with regional speech. It does not establish accuracy for every dialect or recording condition. The bridge now offers automatic detection and 11 explicit languages shared by ASR and the aligner. A short English sample has passed real-model testing; other languages still need individual acceptance tests. Upstream supports offline and streaming inference, while Huiji P currently exposes uploaded-recording processing.
 
 ### NVIDIA Nemotron-3-Diarization: compact, context-aware speaker tracking
 
@@ -54,7 +54,7 @@ Usually up to five clean 3–6 second windows are selected per speaker. Enrollme
 
 ## Recognition and alignment
 
-The current bridge is configured primarily for Chinese, even though the upstream models have broader language capabilities. Alignment places supplied text on the timeline; it does not validate recognition or identify speakers. Chunk Manager typically uses 10–30 second cores with padding, midpoint deduplication and sentence-level role consolidation. No unified accuracy or real-time-factor benchmark has been completed for this integration.
+The current bridge offers auto-detection and explicit zh/en/yue/fr/de/it/ja/ko/pt/ru/es selection. New Qwen configurations default to auto; existing zh profiles remain Chinese. The Python CLI retains zh when --language is omitted for legacy compatibility. Alignment places supplied text on the timeline; it does not validate recognition or identify speakers. Chunk Manager typically uses 10–30 second cores with padding, midpoint deduplication and sentence-level role consolidation. No unified accuracy or real-time-factor benchmark has been completed for this integration.
 
 ## Optional and compatibility components
 

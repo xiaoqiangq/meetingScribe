@@ -14,9 +14,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: '会记P',
-        short_name: '会记P',
-        description: '语音转写与会议纪要',
+        name: 'Huiji P',
+        short_name: 'Huiji P',
+        description: 'Audio transcription and meeting minutes',
         theme_color: '#8936FF',
         background_color: '#2EC6FE',
         display: 'standalone',
@@ -47,6 +47,7 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
+    emptyOutDir: false,
     assetsDir: "assets",
     rollupOptions: {
       output: {

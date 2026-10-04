@@ -8,6 +8,14 @@
 
 先由管理员建立可用的 Transcription Profile，选择已安装的 Qwen3-ASR 与 Nemotron 分人流程。Profile 下拉框不会凭空生成模型配置；没有 Profile 时可通过高级转写设置选择可用参数。先用 30–60 秒样本确认转写、分人及时间跳转正常。
 
+## 界面语言与音频语言
+
+网页默认英文。右下角 **English / 中文** 切换界面语言，选择保存在当前浏览器，切换会刷新页面。录音名称、逐字稿和纪要内容不会因此被翻译。
+
+转写配置中的 **Audio language** 独立控制Qwen识别语言：自动检测，以及中文、英文、粤语、法语、德语、意大利语、日语、韩语、葡萄牙语、俄语、西班牙语。范围以ASR与ForcedAligner共同支持的语言为准。新Qwen配置默认自动检测；已有配置中的中文选择继续保留。
+
+管理员高级配置和普通用户的Profile转写弹窗均可选择音频语言。普通用户的模型、设备等仍由管理员Profile决定。短英文测试不代表所有语言和长会议均已完成效果评测。
+
 ## 2. 短音频与长音频
 
 - **上传短音频**：整段运行 Nemotron，仍可生成姓名候选。
@@ -43,6 +51,8 @@
 参见 [数据与备份](DATA.md)。部署时将数据库、音频、逐字稿、纪要和声纹库放在持久化目录。代码仓库不是录音备份。管理员定期检查磁盘空间，备份后再按产品提供的删除方式处理项目。
 
 ## English quick guide
+
+The interface defaults to English. Use the bottom-right English / 中文 switch; the browser remembers your choice and reloads. Recording names, transcripts and minutes keep their original content. Audio language is independent: choose auto-detection or one of 11 explicit languages in the transcription dialog. Ordinary users can select language while the administrator profile still controls model/device settings.
 
 1. Create an administrator, configure installed models and a shared transcription profile, then validate a short recording.
 2. Use short upload for whole-recording diarization. Use long upload with manual topic boundaries for long meetings; topics execute serially and retain independent labels.

@@ -166,3 +166,35 @@ func TestFunASRQwenChunkManagerRequiresSortformer(t *testing.T) {
 		}
 	}
 }
+
+func TestQwenLanguageNotOverwrittenAtRequestBoundary(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, code := range []string{"", "auto", "zh", "en", "yue", "fr", "de", "it", "ja", "ko", "pt", "ru", "es", "ar"} {
+		t.Run(code, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(rec)
+			ctx.Set("role", "admin")
+			ctx.Set("auth_type", "jwt")
+			body := fmt.Sprintf(`{"model_family":"funasr","model":"Qwen/Qwen3-ASR-1.7B","device":"cuda","language":%q}`, code)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/start", strings.NewReader(body))
+			ctx.Request.Header.Set("Content-Type", "application/json")
+			params, err := (&Handler{}).getValidatedTranscriptionParams(ctx, &models.TranscriptionJob{}, "fixture")
+			if code == "ar" {
+				if err == nil || rec.Code != 400 {
+					t.Fatal("unsupported alignment language must be rejected")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := code
+			if want == "" {
+				want = "auto"
+			}
+			if params.Language == nil || *params.Language != want {
+				t.Fatalf("language=%v; want %s", params.Language, want)
+			}
+		})
+	}
+}

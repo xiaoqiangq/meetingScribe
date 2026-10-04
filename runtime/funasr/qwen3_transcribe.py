@@ -24,6 +24,41 @@ VAD_DIR = CACHE_MODELS / "iic--speech_fsmn_vad_zh-cn-16k-common-pytorch" / "snap
 CAMPP_DIR = CACHE_MODELS / "iic--speech_campplus_sv_zh-cn_16k-common" / "snapshots" / "master"
 
 
+LANGUAGES = {"zh": "Chinese", "en": "English", "yue": "Cantonese", "fr": "French",
+             "de": "German", "it": "Italian", "ja": "Japanese", "ko": "Korean",
+             "pt": "Portuguese", "ru": "Russian", "es": "Spanish"}
+
+
+def qwen_language(code: str) -> str | None:
+    if code == "auto":
+        return None
+    if code not in LANGUAGES:
+        raise ValueError(f"Unsupported Qwen timestamp language: {code}")
+    return LANGUAGES[code]
+
+
+def detected_language(names: list[str], requested: str) -> str:
+    reverse = {name.lower(): code for code, name in LANGUAGES.items()}
+    codes = {reverse.get(name.lower(), name.lower()) for name in names if name}
+    if len(codes) == 1:
+        return next(iter(codes))
+    if len(codes) > 1:
+        return "mul"
+    return requested if requested != "auto" else "und"
+
+
+def join_chunk_texts(segments: list[dict], language: str) -> str:
+    if language not in ("zh", "yue", "ja", "und", "mul"):
+        return " ".join(segment["text"].strip() for segment in segments)
+    text = ""
+    for segment in segments:
+        part = segment["text"]
+        if text and part and text[-1].isascii() and part[0].isascii() and not text[-1].isspace() and not part[0].isspace():
+            text += " "
+        text += part
+    return text
+
+
 def _surface_chars(text: str) -> str:
     return "".join(char for char in text if char.isalnum() or char == "_")
 
@@ -50,7 +85,7 @@ def _aligned_unit_positions(text: str) -> list[int]:
     return positions
 
 
-def _fix_funasr_timestamp_units(model) -> None:
+def _fix_funasr_timestamp_units(model, language: str = "zh", detected: list[str] | None = None) -> None:
     """Adapt qwen-asr seconds to FunASR 1.4.16's expected milliseconds.
 
     The upstream adapter currently calls int(ts.start_time), losing subsecond
@@ -65,7 +100,10 @@ def _fix_funasr_timestamp_units(model) -> None:
 
     def transcribe_ms(*args, **kwargs):
         results = []
+        kwargs["language"] = qwen_language(language)
         for item in original(*args, **kwargs):
+            if detected is not None:
+                detected.append(item.language)
             if item.time_stamps is None:
                 results.append(item)
                 continue
@@ -149,7 +187,7 @@ def _aligned_words(text: str, timestamps: list, speaker: str | None,
     return words
 
 
-def convert_qwen_result(item: dict, require_speakers: bool) -> dict:
+def convert_qwen_result(item: dict, require_speakers: bool, language: str = "zh") -> dict:
     full_text = item.get("text", "")
     sentences = item.get("sentence_info") or []
     if not full_text or not sentences:
@@ -190,7 +228,7 @@ def convert_qwen_result(item: dict, require_speakers: bool) -> dict:
         all_words = []
     return {
         "text": full_text,
-        "language": "zh",
+        "language": language,
         "segments": segments,
         "word_segments": all_words,
         "model_used": "Qwen3-ASR-1.7B + Qwen3-ForcedAligner-0.6B + fsmn-vad + cam++"
@@ -231,7 +269,7 @@ def _save_chunk_outputs(path: Path, records: list[dict]) -> None:
 
 
 def transcribe_with_chunk_manager(model, audio_path: Path, sortformer_path: Path,
-                                  output_path: Path) -> dict:
+                                  output_path: Path, language: str = "zh") -> dict:
     """Run full-audio VAD, plan chunks, then bypass FunASR's VAD ASR pipeline."""
     import soundfile as sf
 
@@ -261,14 +299,17 @@ def transcribe_with_chunk_manager(model, audio_path: Path, sortformer_path: Path
     words = []
     raw_path = output_path.with_name("qwen-chunk-outputs.json")
     raw_records = []
+    detected = []
     for chunk in chunks:
         input_audio = audio[round(chunk.input_start * sample_rate):
                             round(chunk.input_end * sample_rate)]
         if not len(input_audio):
             raise RuntimeError(f"empty audio for chunk {chunk.index}")
-        result = qwen.transcribe(audio=[(input_audio, sample_rate)], language="Chinese",
+        result = qwen.transcribe(audio=[(input_audio, sample_rate)], language=qwen_language(language),
                                  return_time_stamps=True)[0]
+        detected.append(result.language)
         raw_record = {
+            "detected_language": result.language,
             **asdict(chunk),
             "raw_text": result.text,
             "raw_timestamps_relative_s": [
@@ -313,8 +354,8 @@ def transcribe_with_chunk_manager(model, audio_path: Path, sortformer_path: Path
            for index in range(1, len(words))):
         raise RuntimeError("Chunk Manager produced out-of-order word timestamps")
     return {
-        "text": "".join(segment["text"] for segment in segments),
-        "language": "zh",
+        "text": join_chunk_texts(segments, detected_language(detected, language)),
+        "language": detected_language(detected, language),
         "segments": segments,
         "word_segments": words,
         "model_used": "Qwen3-ASR-1.7B + Qwen3-ForcedAligner-0.6B + FSMN-VAD + Sortformer + Chunk Manager",
@@ -332,6 +373,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("audio", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--language", choices=["auto", *LANGUAGES], default="zh",
+                        help="Spoken language; auto enables Qwen detection. Default zh preserves CLI compatibility.")
     parser.add_argument("--native-speakers", action="store_true")
     parser.add_argument("--merge-vad-seconds", type=int, default=0,
                         help="Experimental: merge short VAD regions before ASR (0 keeps current behavior)")
@@ -383,12 +426,13 @@ def main() -> None:
             parser.error("Chunk Manager uses Sortformer; CAM++ speakers are unavailable")
         args.output.parent.mkdir(parents=True, exist_ok=True)
         result = transcribe_with_chunk_manager(model, args.audio,
-                                               args.chunk_manager_sortformer, args.output)
+                                               args.chunk_manager_sortformer, args.output, args.language)
     else:
-        _fix_funasr_timestamp_units(model)
+        detected = []
+        _fix_funasr_timestamp_units(model, args.language, detected)
         items = model.generate(
             input=str(args.audio),
-            language="zh",
+            language=args.language,
             return_time_stamps=True,
             sentence_timestamp=True,
             batch_size_s=30,
@@ -400,7 +444,8 @@ def main() -> None:
             raw_path = args.output.with_suffix(".raw.json")
             raw_path.parent.mkdir(parents=True, exist_ok=True)
             raw_path.write_text(json.dumps(items[0], ensure_ascii=False), encoding="utf-8")
-        result = convert_qwen_result(items[0], args.native_speakers)
+        result = convert_qwen_result(items[0], args.native_speakers, detected_language(detected, args.language))
+    result.setdefault("metadata", {})["requested_language"] = args.language
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
 

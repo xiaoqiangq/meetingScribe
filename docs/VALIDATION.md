@@ -50,3 +50,12 @@ CI 已在 GitHub 托管 Linux runner 上通过镜像构建，但它没有本项�
 - [CI #1](https://github.com/xiaoqiangq/huiji-p/actions/runs/37198808281)：success。
 - 干净 Ubuntu runner 完成 npm ci、Python 23 项测试、前端 20 项测试与生产构建、Go 回归/API 测试与应用构建、Compose 配置检查、Docker 镜像构建和应用 artifact 上传。
 - 没有 GPU 推理、外部 LLM 或浏览器业务验收；不要扩大通过范围。
+
+## Language update synchronization (2026-10-04)
+
+- Source: the retained `language-v17` deployment snapshot, merged with the repository's installation/CI/release configuration. Generated frontend bundles and private deployment files are excluded.
+- Current local verification: 26 Python bridge/chunk tests, 20 frontend tests, TypeScript/Vite build, Go models/transcription tests and selected API tests passed. API checks include Qwen language validation and ordinary-user language overrides with profile controls preserved.
+- The first local Go attempt could not open an HTTP test listener inside the sandbox; the same tests passed with local-listener permission.
+- The retained deployment report records a 7.85-second synthetic English sample, tested with real Qwen and ForcedAligner under explicit-English and auto-detection settings: both returned `en` with 25 word timestamps. This synchronization does not rerun GPU inference or alter the running service.
+- English-default interface and Chinese switching were browser-checked in that deployment report. This synchronization checks source/build; it does not repeat browser acceptance.
+- These checks do not establish all-language quality, full English-meeting accuracy, live streaming, or fresh GPU installation acceptance. The new commit's CI status must be checked independently.

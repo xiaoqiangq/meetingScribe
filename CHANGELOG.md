@@ -4,6 +4,11 @@
 
 ### Added
 
+- English-default interface with a persistent English / Chinese switch; recording content is not translated by the switch.
+- Independent Qwen audio-language selection: auto-detection and 11 explicit languages shared with ForcedAligner.
+- API, service, adapter and Python language forwarding, language validation, detected-language output and English chunk spacing regressions.
+
+
 - Chinese and English architecture, model and installation documentation.
 - Detailed topic → Nemotron → VAD/chunks → Qwen/aligner → reviewed identities → minutes pipeline.
 - Runtime installer, model downloader and environment checks.
@@ -19,4 +24,4 @@
 
 ### Validation status
 
-Existing A100 runtime checks pass. Local application tests/build are recorded in docs/VALIDATION.md. Fresh GPU installation and Docker image acceptance are pending; no stable release is claimed.
+Existing A100 runtime checks pass. Local application tests/build are recorded in docs/VALIDATION.md. Fresh GPU installation and container GPU inference acceptance are pending; no stable release is claimed.

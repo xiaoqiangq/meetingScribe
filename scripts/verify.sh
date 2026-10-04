@@ -9,5 +9,5 @@ PYTHONPATH=runtime/funasr:runtime/nemotron python3 -m unittest discover -s runti
 python3 scripts/copy_frontend.py
 go test ./internal/models ./internal/transcription
 # Selected API tests use an in-memory DB and do not remove fixture directories.
-go test ./internal/api -run '^(TestMultiuserAccessAndMigration|TestTopicUploadValidation|TestLongRecordingSurvivesProfileSelection|TestBothNvidiaChunkManagerSelectionsSurviveValidation|TestFunASR.*)$'
+go test ./internal/api -run '^(TestMultiuserAccessAndMigration|TestTopicUploadValidation|TestLongRecordingSurvivesProfileSelection|TestBothNvidiaChunkManagerSelectionsSurviveValidation|TestFunASR.*|Test.*Qwen.*Language.*)$'
 go build -trimpath -o bin/huiji-p ./cmd/server

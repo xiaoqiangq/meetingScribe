@@ -1163,7 +1163,12 @@ func (h *Handler) getValidatedTranscriptionParams(c *gin.Context, job *models.Tr
 			c.JSON(403, gin.H{"error": err.Error()})
 			return nil, err
 		}
+		// Audio language is a user choice; model and system settings stay in the admin profile.
+		requestedLanguage := requestParams.Language
 		requestParams = profile.Parameters
+		if requestParams.Model == "Qwen/Qwen3-ASR-1.7B" && requestedLanguage != nil {
+			requestParams.Language = requestedLanguage
+		}
 		requestParams.TopicMode = job.Parameters.TopicMode
 		requestParams.TopicBoundaries = job.Parameters.TopicBoundaries
 	}
@@ -1239,8 +1244,22 @@ func (h *Handler) getValidatedTranscriptionParams(c *gin.Context, job *models.Tr
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Chunk Manager requires Qwen3-ASR, Sortformer and VAD merge disabled"})
 			return nil, fmt.Errorf("invalid Qwen Chunk Manager parameters")
 		}
-		language := "zh"
-		requestParams.Language = &language
+		if requestParams.Model == "Qwen/Qwen3-ASR-1.7B" {
+			language := "auto"
+			if requestParams.Language != nil && *requestParams.Language != "" {
+				language = *requestParams.Language
+			}
+			switch language {
+			case "auto", "zh", "en", "yue", "fr", "de", "it", "ja", "ko", "pt", "ru", "es":
+			default:
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported Qwen timestamp language"})
+				return nil, fmt.Errorf("unsupported Qwen timestamp language %q", language)
+			}
+			requestParams.Language = &language
+		} else {
+			language := "zh"
+			requestParams.Language = &language
+		}
 		requestParams.Task = "transcribe"
 		if requestParams.Diarize {
 			switch requestParams.DiarizeModel {

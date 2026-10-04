@@ -135,6 +135,17 @@ func TestMultiuserAccessAndMigration(t *testing.T) {
 	if err != nil || params.Device != "cuda" || params.ModelDir != nil || params.HfToken == nil {
 		t.Fatalf("profile validation: %v %+v", err, params)
 	}
+	// A regular user may select the audio language while model/system settings remain profile-controlled.
+	for _, language := range []string{"en", "zh", "auto"} {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Set("role", "user")
+		ctx.Request = httptest.NewRequest("POST", "/start", strings.NewReader(fmt.Sprintf(`{"profile_id":"approved","language":%q,"device":"cpu","model_dir":"/private/other-user"}`, language)))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+		params, err := h.getValidatedTranscriptionParams(ctx, &jA, jA.ID)
+		if err != nil || params.Language == nil || *params.Language != language || params.Device != "cuda" || params.ModelDir != nil || params.Model != "Qwen/Qwen3-ASR-1.7B" {
+			t.Fatalf("user language selection: %v %+v", err, params)
+		}
+	}
 	// Demoting/disabling self is rejected; ordinary users cannot change accounts.
 	if w := call("PATCH", fmt.Sprintf("/api/v1/admin/users/%d", admin.ID), `{"disabled":true}`, tokens[admin.Username]); w.Code != 400 {
 		t.Fatal("self disable allowed")
