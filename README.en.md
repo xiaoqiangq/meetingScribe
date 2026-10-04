@@ -20,6 +20,16 @@ Built on [Scriberr](https://github.com/rishikanthc/Scriberr). Speech recognition
 | Meeting minutes | Selectable templates, sourced / clean views and generation history |
 | Multiple users | Owner-based recording and minutes access; administrator account management |
 
+## Why Huiji P
+
+- **Complementary meeting models**: ASR, diarization and alignment support timed transcript review.
+- **Structure-aware chunks**: Silence and speaker intervals guide cuts; context padding and core ownership preserve continuity and remove duplicates.
+- **Topic-local speaker tracking**: Independent caches accommodate changing participants; recordings may exceed eight people when each topic stays within capacity.
+- **Reviewable identity suggestions**: Native features from the same Nemotron checkpoint propose names and links for listening and confirmation.
+- **Traceable minutes**: Sourced and clean views, selectable templates and generation history connect review with sharing.
+
+[Strengths and practical limits](docs/ADVANTAGES.en.md) explains language support, speaker capacity, topics and performance evidence. The current bridge forces Chinese; cross-topic links require confirmation. Matched commercial comparisons have not been measured.
+
 ## Complete processing pipeline
 
 ```text
