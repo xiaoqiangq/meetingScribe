@@ -1,18 +1,30 @@
+# Huiji P: builds this repository, never pulls the upstream Scriberr application.
+# Linux NVIDIA host + Docker Compose >= 2.30 + NVIDIA Container Toolkit.
 services:
-  scriberr:
-    image: ghcr.io/rishikanthc/scriberr:latest
+  huiji-p:
+    build:
+      context: .
+      dockerfile: Dockerfile.cuda
+    image: huiji-p:local-cuda
     ports:
-      - "8080:8080"
-    volumes:
-      - scriberr_data:/app/data
-      - env_data:/app/whisperx-env
+      - "${HUIJI_BIND_ADDRESS:-127.0.0.1}:${HUIJI_PORT:-8080}:8080"
+    gpus: all
+    user: "${HUIJI_UID:-1000}:${HUIJI_GID:-1000}"
     environment:
-      # Security: already set in container, but can be overridden
-      - APP_ENV=production
-      # CORS: comma-separated list of allowed origins for production
-      # - ALLOWED_ORIGINS=https://your-domain.com
+      HOST: 0.0.0.0
+      PORT: "8080"
+      APP_ENV: production
+      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-http://localhost:8080}"
+      SECURE_COOKIES: "${SECURE_COOKIES:-false}"
+      DATABASE_PATH: /app/data/scriberr.db
+      UPLOAD_DIR: /app/data/uploads
+      TRANSCRIPTS_DIR: /app/data/transcripts
+      JWT_SECRET_FILE: /app/data/jwt_secret
+      TOPIC_NATIVE_REFERENCE_ROOT: /app/data/nemotron-voiceprints
+      WHISPERX_ENV: /app/whisperx-env
+      HOME: /app/data
+      UV_CACHE_DIR: /app/data/uv-cache
+    volumes:
+      - "${HUIJI_DATA_DIR:-./data}:/app/data"
+      - "${HUIJI_RUNTIME_DIR:-./data/whisperx-env}:/app/whisperx-env"
     restart: unless-stopped
-
-volumes:
-  scriberr_data: {}
-  env_data: {}

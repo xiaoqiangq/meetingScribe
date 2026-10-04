@@ -1,118 +1,31 @@
-# Multi-stage build for Scriberr: builds React UI and Go server, then
-# ships a slim runtime with Python, uv, and ffmpeg for WhisperX/yt-dlp.
+# Huiji P application runtime. Model environments and weights are prepared separately.
+FROM node:22.12.0-bookworm-slim AS frontend
+WORKDIR /src/web/frontend
+COPY web/frontend/package.json web/frontend/package-lock.json ./
+RUN npm ci
+COPY web/frontend/ ./
+RUN npm run build
 
-########################
-# UI build stage
-########################
-FROM node:20-alpine AS ui-builder
-WORKDIR /web
-
-# Install deps and build web/frontend
-COPY web/frontend/package*.json ./frontend/
-RUN cd frontend \
-  && npm ci
-
-COPY web/frontend ./frontend
-RUN cd frontend \
-  && npm run build
-
-
-########################
-# Go build stage
-########################
-FROM golang:1.24-bookworm AS go-builder
+FROM golang:1.24.4-bookworm AS backend
 WORKDIR /src
-
-# Pre-cache modules
 COPY go.mod go.sum ./
 RUN go mod download
+COPY . ./
+COPY --from=frontend /src/web/frontend/dist/ ./internal/web/dist/
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_DATE=unknown
+RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${BUILD_DATE}" -o /out/huiji-p ./cmd/server
 
-# Copy source
-COPY . .
-
-# Copy built UI into embed path
-RUN rm -rf internal/web/dist && mkdir -p internal/web
-COPY --from=ui-builder /web/frontend/dist internal/web/dist
-
-# Build binary (arch matches builder platform)
-RUN CGO_ENABLED=0 \
-  go build -o /out/scriberr cmd/server/main.go
-
-# Build CLI binaries (cross-platform)
-RUN mkdir -p /out/bin/cli \
-  && GOOS=linux GOARCH=amd64 go build -o /out/bin/cli/scriberr-linux-amd64 ./cmd/scriberr-cli \
-  && GOOS=darwin GOARCH=amd64 go build -o /out/bin/cli/scriberr-darwin-amd64 ./cmd/scriberr-cli \
-  && GOOS=darwin GOARCH=arm64 go build -o /out/bin/cli/scriberr-darwin-arm64 ./cmd/scriberr-cli \
-  && GOOS=windows GOARCH=amd64 go build -o /out/bin/cli/scriberr-windows-amd64.exe ./cmd/scriberr-cli
-
-
-########################
-# Runtime stage
-########################
-FROM python:3.11-slim AS runtime
-
-ENV PYTHONUNBUFFERED=1 \
-  HOST=0.0.0.0 \
-  PORT=8080 \
-  DATABASE_PATH=/app/data/scriberr.db \
-  UPLOAD_DIR=/app/data/uploads \
-  WHISPERX_ENV=/app/whisperx-env \
-  APP_ENV=production \
-  PUID=1000 \
-  PGID=1000
-
+FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git ffmpeg libsndfile1 build-essential python3 python3-venv python3-dev
+RUN python3 -m venv /opt/tools && /opt/tools/bin/pip install --no-cache-dir uv==0.8.22 yt-dlp
+ENV PATH="/opt/tools/bin:${PATH}" PYTHONUNBUFFERED=1 HOST=0.0.0.0 PORT=8080 APP_ENV=production WHISPERX_ENV=/app/whisperx-env HOME=/app/data
 WORKDIR /app
-
-# System deps: curl for uv install, ca-certs, ffmpeg for yt-dlp, git for git+ installs, gosu for user switching
-# Build tools: gcc, g++, make for compiling Python C extensions (needed for NeMo dependencies like texterrors)
-RUN apt-get update \
-  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-  curl ca-certificates ffmpeg git gosu \
-  build-essential gcc g++ make python3-dev unzip\
-  && rm -rf /var/lib/apt/lists/*
-
-# Install uv (fast Python package manager) directly to system PATH
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
-  && cp /root/.local/bin/uv /usr/local/bin/uv \
-  && chmod 755 /usr/local/bin/uv \
-  && uv --version
-
-# Install yt-dlp standalone binary
-RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
-  && chmod a+rx /usr/local/bin/yt-dlp \
-  && yt-dlp --version
-
-# Install Deno (JavaScript runtime required for yt-dlp YouTube downloads)
-# YouTube now requires JS execution for video cipher decryption
-# See: https://github.com/yt-dlp/yt-dlp/issues/14404
-RUN curl -fsSL https://deno.land/install.sh | sh \
-  && cp /root/.deno/bin/deno /usr/local/bin/deno \
-  && chmod 755 /usr/local/bin/deno \
-  && deno --version
-
-# Create default user (will be modified at runtime if needed)
-RUN groupadd -g 1000 appuser \
-  && useradd -m -u 1000 -g 1000 appuser \
-  && mkdir -p /app/data/uploads /app/data/transcripts \
-  && chown -R appuser:appuser /app
-
-# Copy binary and entrypoint script
-COPY --from=go-builder /out/scriberr /app/scriberr
-COPY --from=go-builder /out/bin/cli /app/bin/cli
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-
-# Make entrypoint script executable and set up basic permissions
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
-  && chown appuser:appuser /app/scriberr
-
-# Expose port and declare volume for persistence
+COPY --from=backend /out/huiji-p /app/huiji-p
+COPY scripts/ /app/scripts/
+COPY runtime/ /app/runtime/
+RUN mkdir -p /app/data /app/whisperx-env && chown 1000:1000 /app/data /app/whisperx-env
+USER 1000:1000
 EXPOSE 8080
-VOLUME ["/app/data"]
-
-# Start as root to allow user ID changes, entrypoint script will switch users
-# Verify uv is available
-RUN uv --version
-
-# Use entrypoint script that handles user switching and permissions
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["/app/scriberr"]
+CMD ["/app/huiji-p"]

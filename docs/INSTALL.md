@@ -212,3 +212,7 @@ ffmpeg -nostdin -i your-meeting.wav -ac 1 -ar 16000 local-result-001/input.wav
 ## 本次验证边界
 
 辅助脚本通过语法检查与 dry-run；文件复制在独立临时目录验证，并拒绝不同版本覆盖。现有 A100 运行环境用同一检查脚本只读验证。未改动现有模型/数据库、没有重启服务；新服务器安装及完整下载仍应按步骤 9 验收。
+
+## 容器部署与版本管理
+
+[会记P Docker 入口](DEPLOY.md) · [验收状态](VALIDATION.md) · [发布和回退](RELEASE.md)

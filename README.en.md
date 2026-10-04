@@ -104,3 +104,9 @@ Diarization can split one speaker or combine several people, especially with ove
 ## Attribution
 
 Scriberr's [MIT license](LICENSE) and copyright notice are retained. See [Attribution](docs/ATTRIBUTION.md). Models and dependencies retain their own licenses.
+
+## Engineering and releases
+
+[Docker deployment](docs/DEPLOY.en.md) · [部署说明](docs/DEPLOY.md) · [Validation status](docs/VALIDATION.md) · [Release policy](docs/RELEASE.md) · [Changelog](CHANGELOG.md)
+
+Default Compose now builds Huiji P source. No stable release has passed fresh GPU acceptance yet. Model environments and weights are prepared separately. CI checks changes; tag workflows package reviewable candidates without deploying production.

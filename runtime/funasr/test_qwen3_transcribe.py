@@ -40,7 +40,8 @@ class QwenConversionTests(unittest.TestCase):
         self.assertEqual("".join(w["word"] for w in words), text)
 
     def test_raw_chunk_evidence_preserves_prefilter_and_selected_text(self):
-        with tempfile.TemporaryDirectory() as directory:
+        directory = tempfile.mkdtemp(prefix="huiji-qwen-test-")
+        if directory:  # Retain test evidence; no recursive cleanup.
             path = Path(directory) / "qwen-chunk-outputs.json"
             records = [{"index": 56, "raw_text": "范畴。现在",
                         "selected_text": "范畴。现", "status": "core_filtered",

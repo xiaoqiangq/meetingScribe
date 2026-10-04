@@ -1,70 +1,28 @@
-# Version Control
 .git
-.gitignore
 .github
-
-# IDEs and Editors
-.idea
-.vscode
-.DS_Store
-**/.DS_Store
-*.swp
-*.swo
-
-# Dependencies and Environments
-node_modules
 **/node_modules
-venv
-.venv
-whisperx-env
-env-data
-
-# Build Artifacts and Binaries
-scriberr
-server
-main
-*.exe
-*.test
-*.out
-dist
+**/.venv
+**/__pycache__
 **/dist
-build
-**/build
-
-# Data and Logs
+internal/web/dist
+bin
+outputs
 data
 data_bak
-scriberr-data
 scriberr_data
-.dockerdata
-*.log
-*.zip
-*.tar.gz
-screenshots
-tmp
-temp
-
-# Documentation and Assets (if not needed for build)
-docs
-assets
-manifest_and_icons
-manifest_and_icons.zip
-CLAUDE.md
-README.md
-LICENSE
-
-# Docker related (exclude other docker files from context)
-Dockerfile*
-docker-compose*.yml
-.dockerignore
-
-# Scripts and Configs (exclude local dev configs)
+scriberr-data
+env-data
+whisperx-env
 .env
-*.env
-.prettier*
-.npmrc
-.goreleaser.yaml
-Makefile
-run_tests.sh
-build.sh
-install_*.sh
+.env.*
+*.db
+*.db-*
+*.wav
+*.mp3
+*.m4a
+*.mp4
+*.nemo
+*.safetensors
+*.pt
+*.pth
+*.log

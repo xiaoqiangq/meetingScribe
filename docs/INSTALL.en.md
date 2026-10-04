@@ -173,3 +173,7 @@ These produce model JSON, chunk plans and alignment evidence. They do not perfor
 | Minutes fail | LLM endpoint, credentials, model name and context limit |
 
 The helper scripts are syntax/dry-run checked and the existing A100 runtime is inspected without restarting the service. Fresh-host downloads and end-to-end operation remain subject to the acceptance steps above.
+
+## Containers and release management
+
+[Huiji P Docker entry](DEPLOY.en.md) · [Acceptance status](VALIDATION.md) · [Releases and rollback](RELEASE.md)

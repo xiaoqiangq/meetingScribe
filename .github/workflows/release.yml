@@ -1,0 +1,48 @@
+name: Release candidate
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: web/frontend/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy
+      - run: npm ci
+        working-directory: web/frontend
+      - run: bash scripts/verify.sh
+      - run: docker compose config --quiet
+      - run: docker build --tag huiji-p:release-check --file Dockerfile.cuda .
+      - name: Package Linux amd64 application (models separate)
+        shell: bash
+        run: |
+          mkdir -p release/huiji-p
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME} -X main.commit=${GITHUB_SHA} -X main.date=$(date -u +%FT%TZ)" -o release/huiji-p/huiji-p ./cmd/server
+          cp .env.example README.md README.en.md LICENSE CHANGELOG.md release/huiji-p/
+          cp -R docs runtime scripts release/huiji-p/
+          tar -czf "release/huiji-p-${GITHUB_REF_NAME}-linux-amd64.tar.gz" -C release huiji-p
+          cd release
+          sha256sum *.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate
+          path: |
+            release/*.tar.gz
+            release/SHA256SUMS
+          retention-days: 30
+# Deliberately produces a reviewable artifact, not an automatic public release.
+# Promote only after the GPU acceptance and upgrade/rollback checks in docs/RELEASE.md.
