@@ -129,6 +129,6 @@ Scriberr's [MIT license](LICENSE) and copyright notice are retained. See [Attrib
 
 ## Engineering and releases
 
-[Docker deployment](docs/DEPLOY.en.md) · [部署说明](docs/DEPLOY.md) · [Validation status](docs/VALIDATION.md) · [Release policy](docs/RELEASE.md) · [Changelog](CHANGELOG.md)
+[Docker deployment](docs/DEPLOY.en.md) · [Validation status](docs/VALIDATION.md) · [Release policy](docs/RELEASE.md) · [Changelog](CHANGELOG.md)
 
 Default Compose now builds Huiji P source. No stable release has passed fresh GPU acceptance yet. Model environments and weights are prepared separately. CI checks changes; tag workflows package reviewable candidates without deploying production.
