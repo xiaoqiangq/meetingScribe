@@ -1,6 +1,6 @@
 # 架构、时间轴与人物规则
 
-[English](ARCHITECTURE.en.md) · [首页](../README.md)
+[English](ARCHITECTURE.en.md) · [首页](../README.zh-CN.md)
 
 ## 完整流程图
 

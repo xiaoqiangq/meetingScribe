@@ -1,6 +1,6 @@
 # Installation and operation
 
-[简体中文](INSTALL.md) · [Home](../README.en.md) · [Models](MODELS.en.md)
+[简体中文](INSTALL.md) · [Home](../README.md) · [Models](MODELS.en.md)
 
 ## Scope
 

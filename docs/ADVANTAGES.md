@@ -1,6 +1,6 @@
 # 会记P的优势与适用边界
 
-[English](ADVANTAGES.en.md) · [返回首页](../README.md) · [完整流程](ARCHITECTURE.md)
+[English](ADVANTAGES.en.md) · [返回首页](../README.zh-CN.md) · [完整流程](ARCHITECTURE.md)
 
 会记P把语音转文字、说话人时间区间、逐字试听和会议纪要接成可复核的会议工作流。尤其适合中文长会议、分议题讨论、发言阵容变化，以及需要人工确认人物身份的场景。
 

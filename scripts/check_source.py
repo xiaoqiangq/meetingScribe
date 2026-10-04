@@ -7,7 +7,7 @@ for folder in ("scripts", "runtime"):
     for path in (root / folder).rglob("*.py"):
         ast.parse(path.read_text(), filename=str(path))
 errors = []
-for path in [root / "README.md", root / "README.en.md", *root.joinpath("docs").glob("*.md")]:
+for path in [root / "README.md", root / "README.en.md", root / "README.zh-CN.md", *root.joinpath("docs").glob("*.md")]:
     body = path.read_text()
     if body.count("```") % 2:
         errors.append(f"{path.name}: unclosed code fence")

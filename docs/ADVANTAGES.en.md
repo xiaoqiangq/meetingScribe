@@ -1,6 +1,6 @@
 # Huiji P: strengths and practical limits
 
-[简体中文](ADVANTAGES.md) · [Home](../README.en.md) · [Full pipeline](ARCHITECTURE.en.md)
+[简体中文](ADVANTAGES.md) · [Home](../README.md) · [Full pipeline](ARCHITECTURE.en.md)
 
 Huiji P connects transcription, speaker timelines, timed playback and meeting minutes in a reviewable workflow. It targets Chinese meetings, long recordings with changing participants, and sessions where people need to confirm speaker identities.
 

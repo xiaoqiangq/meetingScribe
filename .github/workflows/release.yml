@@ -32,7 +32,7 @@ jobs:
         run: |
           mkdir -p release/huiji-p
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME} -X main.commit=${GITHUB_SHA} -X main.date=$(date -u +%FT%TZ)" -o release/huiji-p/huiji-p ./cmd/server
-          cp .env.example README.md README.en.md LICENSE CHANGELOG.md release/huiji-p/
+          cp .env.example README.md README.en.md README.zh-CN.md LICENSE CHANGELOG.md release/huiji-p/
           cp -R docs runtime scripts release/huiji-p/
           tar -czf "release/huiji-p-${GITHUB_REF_NAME}-linux-amd64.tar.gz" -C release huiji-p
           cd release

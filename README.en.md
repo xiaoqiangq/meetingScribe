@@ -4,7 +4,7 @@
 
 **A self-hosted workspace for Chinese meeting transcription, speaker diarization and meeting minutes.**
 
-[简体中文](README.md) · [Installation](docs/INSTALL.en.md) · [Architecture](docs/ARCHITECTURE.en.md) · [Models](docs/MODELS.en.md) · [User guide](docs/USAGE.md#english-quick-guide)
+[简体中文](README.zh-CN.md) · [Installation](docs/INSTALL.en.md) · [Architecture](docs/ARCHITECTURE.en.md) · [Models](docs/MODELS.en.md) · [User guide](docs/USAGE.md#english-quick-guide)
 
 Built on [Scriberr](https://github.com/rishikanthc/Scriberr). Speech recognition, diarization and native-feature matching run locally. Minutes and transcript chat use your configured local or external LLM. This repository contains source and documentation, without recordings, private voiceprints or model weights.
 

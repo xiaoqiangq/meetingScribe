@@ -1,6 +1,6 @@
 # 安装与运行
 
-[English](INSTALL.en.md) · [首页](../README.md) · [模型](MODELS.md)
+[English](INSTALL.en.md) · [首页](../README.zh-CN.md) · [模型](MODELS.md)
 
 ## 0. 安装范围与准备
 

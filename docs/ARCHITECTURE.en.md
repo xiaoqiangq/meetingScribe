@@ -1,6 +1,6 @@
 # Architecture, timestamps and speaker identity
 
-[简体中文](ARCHITECTURE.md) · [Home](../README.en.md)
+[简体中文](ARCHITECTURE.md) · [Home](../README.md)
 
 ```text
 Full recording ──┬──→ Short mode: Nemotron on the complete recording
