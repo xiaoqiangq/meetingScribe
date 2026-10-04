@@ -1,5 +1,7 @@
 # Changelog
 
+[简体中文](CHANGELOG.zh-CN.md)
+
 ## Unreleased
 
 ### Added
@@ -18,10 +20,12 @@
 
 ### Changed
 
+- English and Chinese README navigation retain five engineering/release entries with matching-language documentation.
+
 - All Compose entry points build Huiji P source instead of pulling upstream Scriberr images.
 - Docker application build uses Node 22.12 and Go 1.24.4; model environments remain external.
 - Frontend exposes a uniform `npm test` command.
 
 ### Validation status
 
-Existing A100 runtime checks pass. Local application tests/build are recorded in docs/VALIDATION.md. Fresh GPU installation and container GPU inference acceptance are pending; no stable release is claimed.
+Existing A100 runtime checks pass. Local application tests/build are recorded in docs/VALIDATION.en.md. Fresh GPU installation and container GPU inference acceptance are pending; no stable release is claimed.

@@ -1,6 +1,6 @@
 # Docker deployment
 
-[中文](DEPLOY.md) · [Native installation](INSTALL.en.md) · [Acceptance status](VALIDATION.md)
+[中文](DEPLOY.md) · [Native installation](INSTALL.en.md) · [Acceptance status](VALIDATION.en.md)
 
 The default Compose file now builds Huiji P from this repository. All four existing Compose entry points share the same configuration. Both Dockerfiles build a Linux CUDA application runtime.
 
@@ -44,4 +44,4 @@ Create the administrator and a model profile, then complete the acceptance check
 
 ## Persistent data and upgrades
 
-`HUIJI_DATA_DIR` defaults to `./data`; `HUIJI_RUNTIME_DIR` defaults to `./data/whisperx-env`. These mounts retain the database, recordings, transcripts, enrollment audio, JWT secret and model environments. Back them up separately from code. Stop with `docker compose stop`. See [release and rollback policy](RELEASE.md); do not delete production volumes or directories as part of upgrades.
+`HUIJI_DATA_DIR` defaults to `./data`; `HUIJI_RUNTIME_DIR` defaults to `./data/whisperx-env`. These mounts retain the database, recordings, transcripts, enrollment audio, JWT secret and model environments. Back them up separately from code. Stop with `docker compose stop`. See [release and rollback policy](RELEASE.en.md); do not delete production volumes or directories as part of upgrades.

@@ -1,6 +1,6 @@
 # 发布、升级与回退
 
-[验收记录](VALIDATION.md) · [部署](DEPLOY.md) · [更新日志](../CHANGELOG.md)
+[English](RELEASE.en.md) · [验收记录](VALIDATION.md) · [部署](DEPLOY.md) · [更新日志](../CHANGELOG.zh-CN.md)
 
 ## 版本与发布门槛
 
@@ -31,7 +31,3 @@
 ## 回退
 
 若只变更应用且数据库兼容，可切回旧应用。若迁移不向后兼容，需恢复升级前的**一致性数据副本**并在隔离目录验证，再切换服务。回退不能靠把旧二进制硬套到新数据库。不要用递归删除恢复环境。
-
-## English summary
-
-The project remains Unreleased. Tag pushes produce reviewable Linux amd64 artifacts and checksums after automated checks. Stable promotion additionally requires fresh GPU installation, application acceptance, and upgrade/rollback validation. Model weights and user data are never bundled. Back up the database and associated files consistently; rollback may require restoring the pre-upgrade data snapshot.

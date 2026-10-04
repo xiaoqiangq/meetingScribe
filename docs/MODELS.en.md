@@ -42,7 +42,7 @@ VAD identifies speech activity, not a speaker's identity or the meeting topic. N
 
 ### Combined value
 
-Together, these components connect **what was said, who spoke when, and where to listen**. Chunk Manager and human identity confirmation turn their outputs into a reviewable meeting workflow. Current project validation and limitations are recorded in [Validation](VALIDATION.md); upstream metrics are not end-to-end Huiji P results.
+Together, these components connect **what was said, who spoke when, and where to listen**. Chunk Manager and human identity confirmation turn their outputs into a reviewable meeting workflow. Current project validation and limitations are recorded in [Validation](VALIDATION.en.md); upstream metrics are not end-to-end Huiji P results.
 
 ## Speaker identities
 

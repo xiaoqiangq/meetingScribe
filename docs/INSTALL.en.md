@@ -176,4 +176,4 @@ The helper scripts are syntax/dry-run checked and the existing A100 runtime is i
 
 ## Containers and release management
 
-[Huiji P Docker entry](DEPLOY.en.md) · [Acceptance status](VALIDATION.md) · [Releases and rollback](RELEASE.md)
+[Huiji P Docker entry](DEPLOY.en.md) · [Acceptance status](VALIDATION.en.md) · [Releases and rollback](RELEASE.en.md)

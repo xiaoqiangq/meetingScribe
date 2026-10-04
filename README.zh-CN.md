@@ -181,6 +181,6 @@ cd huiji-p
 
 ## 工程与发布
 
-[Docker deployment](docs/DEPLOY.en.md) · [部署说明](docs/DEPLOY.md) · [Validation status](docs/VALIDATION.md) · [Release policy](docs/RELEASE.md) · [Changelog](CHANGELOG.md)
+[Docker 部署](docs/DEPLOY.md) · [部署说明](docs/DEPLOY.md) · [验收状态](docs/VALIDATION.md) · [发布策略](docs/RELEASE.md) · [更新日志](CHANGELOG.zh-CN.md)
 
 默认 Compose 已构建会记P源码。当前尚无经过完整从零 GPU 验收的稳定发布；模型环境与权重需另外准备。CI 与 tag workflow 负责自动检查和候选打包，生产部署由管理员确认验收后执行。

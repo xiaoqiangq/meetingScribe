@@ -60,6 +60,6 @@ Speech processing and native-feature ranking run locally. Minutes use a configur
 
 NVIDIA reports AliMeeting near/far DER of 6.40%/10.47% at its 30.4-second latency setting, on meetings with 2–4 speakers. These are model benchmarks, not Huiji P results or evidence of eight-person accuracy. That latency setting is not the total recording processing time. [Official evaluation](https://huggingface.co/nvidia/Nemotron-3-Diarization)
 
-The Chinese pipeline has run on an A100 deployment. GitHub CI passes application checks and Docker builds. Whole-application speed, cross-topic accuracy and matched commercial comparisons have not been systematically measured. Independent fresh-GPU installation and business acceptance remain pending. See [Validation](VALIDATION.md).
+The Chinese pipeline has run on an A100 deployment. GitHub CI passes application checks and Docker builds. Whole-application speed, cross-topic accuracy and matched commercial comparisons have not been systematically measured. Independent fresh-GPU installation and business acceptance remain pending. See [Validation](VALIDATION.en.md).
 
 **Huiji P's strength is a Chinese long-meeting workflow that combines established models with timed review, confirmed identities and minutes history.**

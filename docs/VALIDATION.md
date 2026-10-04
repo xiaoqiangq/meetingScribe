@@ -1,5 +1,7 @@
 # 验收状态与复现记录
 
+[English](VALIDATION.en.md) · [部署](DEPLOY.md) · [发布策略](RELEASE.md)
+
 记录日期：2026-10-04。此页区分自动测试、现有部署检查与从零安装。
 
 ## 已完成
@@ -51,11 +53,12 @@ CI 已在 GitHub 托管 Linux runner 上通过镜像构建，但它没有本项�
 - 干净 Ubuntu runner 完成 npm ci、Python 23 项测试、前端 20 项测试与生产构建、Go 回归/API 测试与应用构建、Compose 配置检查、Docker 镜像构建和应用 artifact 上传。
 - 没有 GPU 推理、外部 LLM 或浏览器业务验收；不要扩大通过范围。
 
-## Language update synchronization (2026-10-04)
+## 语言更新同步（2026-10-04）
 
-- Source: the retained `language-v17` deployment snapshot, merged with the repository's installation/CI/release configuration. Generated frontend bundles and private deployment files are excluded.
-- Current local verification: 26 Python bridge/chunk tests, 20 frontend tests, TypeScript/Vite build, Go models/transcription tests and selected API tests passed. API checks include Qwen language validation and ordinary-user language overrides with profile controls preserved.
-- The first local Go attempt could not open an HTTP test listener inside the sandbox; the same tests passed with local-listener permission.
-- The retained deployment report records a 7.85-second synthetic English sample, tested with real Qwen and ForcedAligner under explicit-English and auto-detection settings: both returned `en` with 25 word timestamps. This synchronization does not rerun GPU inference or alter the running service.
-- English-default interface and Chinese switching were browser-checked in that deployment report. This synchronization checks source/build; it does not repeat browser acceptance.
-- These checks do not establish all-language quality, full English-meeting accuracy, live streaming, or fresh GPU installation acceptance. The new commit's CI status must be checked independently.
+- 来源：保留的 `language-v17` 部署源码快照，与仓库的安装、CI和发布配置合并；未同步前端构建产物或私有部署文件。
+- 本地验证通过：26项Python测试、20项前端测试、TypeScript/Vite构建、Go模型/转写及所选API测试、Linux amd64编译。API测试包含语言验证及普通用户语言选择，同时保留Profile的模型/设备限制。
+- 首次Go测试因沙箱无法打开本地HTTP监听而中断；取得本地监听权限后，相同测试通过。
+- 既有部署记录包含7.85秒合成英文样本的真实Qwen与ForcedAligner测试：显式英文和自动检测均返回 `en`，生成25个词时间戳。源码同步没有重跑GPU推理，也没有修改线上服务。
+- 英文默认界面与中文切换已在既有部署记录中通过浏览器检查；源码同步没有重复网页验收。
+- 提交 `b2e3c49e0c3a94a49d5f5f491de7b31983037eb4` 的 [CI #3](https://github.com/xiaoqiangq/huiji-p/actions/runs/37203255936) 已通过测试、应用编译、Compose验证和Docker构建。
+- 这些检查不代表全部语言效果、完整英文会议、实时流式或全新GPU安装已通过验收。后续提交的CI状态需独立核查。
