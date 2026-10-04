@@ -30,6 +30,17 @@ Built on [Scriberr](https://github.com/rishikanthc/Scriberr). Speech recognition
 
 [Strengths and practical limits](docs/ADVANTAGES.en.md) explains language support, speaker capacity, topics and performance evidence. The current bridge forces Chinese; cross-topic links require confirmation. Matched commercial comparisons have not been measured.
 
+## Model strengths behind the workflow
+
+| Model | Strengths | Value in Huiji P |
+| --- | --- | --- |
+| **Qwen3-ASR-1.7B** | Broad language coverage: 30 languages and 22 Chinese dialects/accents; upstream reports robustness under challenging acoustic conditions | A capable foundation for Chinese meeting transcription, including regional speech |
+| **NVIDIA Nemotron-3-Diarization** | Up to eight speakers per run, overlapping-speech activity, and speaker-cache context; about 100M parameters | Timed speaker attribution without enrolling participants first; independent topic runs accommodate changing participants |
+| **Qwen3-ForcedAligner-0.6B** | Aligns supplied text to audio; upstream supports 11 languages | Word/token timestamps for highlighting, Listen seeking and attribution using Nemotron intervals |
+| **FSMN-VAD** | Compact speech/silence detector; deployed main weights are about 1.72 MB | Pause-aware chunk planning while preserving the original audio timeline |
+
+[Model strengths and integration details](docs/MODELS.en.md#why-these-models) includes official sources and practical limits. Upstream streaming and multilingual capabilities are distinct from this application's current Chinese upload workflow; they do not imply live transcription or fully validated multilingual support here.
+
 ## Complete processing pipeline
 
 ```text

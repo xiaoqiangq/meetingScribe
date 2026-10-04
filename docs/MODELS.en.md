@@ -14,6 +14,36 @@
 
 Sizes describe main weight files from the existing deployment, in decimal units. They exclude environments, CUDA and caches; they are not VRAM requirements.
 
+## Why these models
+
+### Qwen3-ASR-1.7B: broad speech coverage
+
+The upstream model supports 30 languages, 22 Chinese dialects/accents and regional English accents. Qwen reports robustness on challenging acoustic inputs. Open weights enable local inference and inspection of the integration. [Official model card](https://huggingface.co/Qwen/Qwen3-ASR-1.7B)
+
+This coverage motivates its use for Chinese meetings with regional speech. It does not establish accuracy for every dialect or recording condition. The current bridge forces Chinese; additional language modes require configuration changes and acceptance tests. Upstream supports offline and streaming inference, while Huiji P currently exposes uploaded-recording processing.
+
+### NVIDIA Nemotron-3-Diarization: compact, context-aware speaker tracking
+
+The approximately 100M-parameter model predicts anonymous speaker activity, including overlap, with up to eight channels per run. Its arrival-order speaker cache retains earlier speaker information; a FIFO queue supplies recent acoustic context. One checkpoint supports different input-buffer configurations and chunked long-audio inference. [Official model card](https://huggingface.co/nvidia/Nemotron-3-Diarization)
+
+For Huiji P, this provides a local timeline without prior participant enrollment. Independent topic runs narrow the tracking scope when participants change. A compact checkpoint is useful in a multi-model pipeline, but parameter count and file size are not runtime VRAM requirements or speed guarantees. Upstream streaming support does not mean the website has live diarization. Original speaker labels remain anonymous until identity review.
+
+### Qwen3-ForcedAligner-0.6B: timing separate from recognition
+
+The aligner supports 11 languages and supplied text units within audio inputs of up to five minutes upstream. In Huiji P it receives the same short chunk used by ASR, placing recognized words/tokens on the audio timeline for highlighting and seeking. Those times also support speaker attribution and padding deduplication. [Official model card](https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B)
+
+Keeping alignment separate lets us inspect timing independently from transcript content. It cannot correct a wrong transcription, validate a name, or resolve overlapping voices by itself.
+
+### FSMN-VAD: a lightweight boundary signal
+
+FSMN-VAD detects speech intervals; the deployed main weights occupy about 1.72 MB. Its speech/silence boundaries guide Chunk Manager toward pauses. The pipeline preserves silence within continuous chunks instead of concatenating speech islands, keeping timing tied to the original recording. [Model card](https://huggingface.co/funasr/fsmn-vad) · [FunASR implementation](https://github.com/modelscope/FunASR)
+
+VAD identifies speech activity, not a speaker's identity or the meeting topic. Noise and soft speech can still affect boundaries.
+
+### Combined value
+
+Together, these components connect **what was said, who spoke when, and where to listen**. Chunk Manager and human identity confirmation turn their outputs into a reviewable meeting workflow. Current project validation and limitations are recorded in [Validation](VALIDATION.md); upstream metrics are not end-to-end Huiji P results.
+
 ## Speaker identities
 
 Nemotron emits anonymous labels, not real names. The project's native-feature extension selects clean non-overlapping audio, extracts features with the same Nemotron checkpoint, and compares them with registered audio or speakers in other topics. **TitaNet is not used in the standard pipeline.** This extension is a recommendation heuristic, not an officially evaluated NVIDIA speaker-verification head.
