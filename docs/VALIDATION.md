@@ -16,9 +16,9 @@
 
 ## 尚未完成及当前阻碍
 
-本机和 GPU1 的 Docker daemon 都不可连接，因此当前不能完成新镜像构建与容器 GPU 推理验收。本机是 macOS，标准模型流程要求 Linux CUDA；GPU1 继续运行现有服务，不能将现有环境检查当作全新安装结果。
+本机和 GPU1 的 Docker daemon 都不可连接；镜像构建已转由 GitHub runner 完成，但容器 GPU 推理验收尚未完成。本机是 macOS，标准模型流程要求 Linux CUDA；GPU1 继续运行现有服务，不能将现有环境检查当作全新安装结果。
 
-CI 会在 GitHub 托管 Linux runner 上检查镜像构建，但它没有本项目的 GPU，不能验收模型推理。新部署配置不被标为已经验收的生产镜像。
+CI 已在 GitHub 托管 Linux runner 上通过镜像构建，但它没有本项目的 GPU，不能验收模型推理。新部署配置不被标为已经验收的生产镜像。
 
 ## 从零 GPU 验收清单
 
@@ -43,3 +43,10 @@ CI 会在 GitHub 托管 Linux runner 上检查镜像构建，但它没有本项�
 `bash scripts/verify.sh` 在新 checkout 运行，不需要 GPU 或会议样本。它覆盖前端 7 个测试文件、Python 桥接测试、Go topic/路由/分句逻辑及选定的 API 多用户/参数验证测试。没有自动运行所有继承测试、真实模型精度评测、外部 LLM 或整套浏览器流程。
 
 测试产生的临时证据保留；本次没有执行递归目录清理。需要清理目录时由用户手动处理。
+
+## 首次 GitHub CI 通过记录
+
+- 提交：`a51344da8f5a32ddfbd446933786f56cfd5f9bb4`。
+- [CI #1](https://github.com/xiaoqiangq/huiji-p/actions/runs/37198808281)：success。
+- 干净 Ubuntu runner 完成 npm ci、Python 23 项测试、前端 20 项测试与生产构建、Go 回归/API 测试与应用构建、Compose 配置检查、Docker 镜像构建和应用 artifact 上传。
+- 没有 GPU 推理、外部 LLM 或浏览器业务验收；不要扩大通过范围。

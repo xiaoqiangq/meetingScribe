@@ -6,7 +6,7 @@
 
 默认 `docker-compose.yml` 构建本仓库的会记P代码，不拉取原版 Scriberr。其他三个 Compose 文件保留为兼容入口，内容相同；`Dockerfile` / `Dockerfile.cuda` 均提供 Linux CUDA 应用运行环境。
 
-镜像包含网站程序、Python 3.12、ffmpeg、uv、运行脚本；**不包含模型权重和 Qwen/NeMo 专用虚拟环境**。首次准备这些环境需要联网和额外磁盘。此 Docker 配置尚未完成镜像构建与 GPU 全链路验收，不能视为已经验证的一键部署包。
+镜像包含网站程序、Python 3.12、ffmpeg、uv、运行脚本；**不包含模型权重和 Qwen/NeMo 专用虚拟环境**。首次准备这些环境需要联网和额外磁盘。此 Docker 配置已通过 GitHub 干净 Linux runner 的镜像构建；GPU 模型环境安装与全链路验收尚未完成，不能视为已经验证的一键部署包。
 
 要求：Linux NVIDIA GPU、可用 Docker daemon、Docker Compose 2.30+、NVIDIA Container Toolkit；先确认 `docker info` 和 `nvidia-smi` 正常。
 

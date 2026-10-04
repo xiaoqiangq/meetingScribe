@@ -4,7 +4,7 @@
 
 The default Compose file now builds Huiji P from this repository. All four existing Compose entry points share the same configuration. Both Dockerfiles build a Linux CUDA application runtime.
 
-**The image does not bundle Qwen/NeMo virtual environments or model weights. Docker image and GPU end-to-end acceptance are still pending.** Requirements: a Linux NVIDIA host, running Docker daemon, Compose 2.30+, and NVIDIA Container Toolkit.
+**The image does not bundle Qwen/NeMo virtual environments or model weights. Docker image build passed on a clean GitHub Linux runner; fresh GPU model installation and end-to-end acceptance are still pending.** Requirements: a Linux NVIDIA host, running Docker daemon, Compose 2.30+, and NVIDIA Container Toolkit.
 
 ## Build
 
