@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { test } from 'node:test';
+import { transform } from 'esbuild';
+
+// Exercise the actual stream consumer with mocked React/query boundaries.
+const original = await readFile(new URL('./useTranscriptionSummary.ts', import.meta.url), 'utf8');
+const source = original.replace(/^import .*;$/gm, '') + '\nexport const run = useSummarizer;';
+const { code } = await transform(source, { loader: 'ts', format: 'cjs' });
+
+test('completed streamed output is immediately cached for reopening, including multibyte chunks', async () => {
+    const cache = new Map();
+    const invalidated = [];
+    const client = { setQueryData: (key, value) => cache.set(JSON.stringify(key), value), invalidateQueries: async ({queryKey}) => { invalidated.push(queryKey); } };
+    const states = [];
+    const module = { exports: {} };
+    new Function('module', 'useQuery', 'useQueryClient', 'useAuth', 'useState', 'buildSummaryContent', code)(
+        module, () => {}, () => client, () => ({ getAuthHeaders: () => ({}) }),
+        initial => { const state = { value: initial }; states.push(state); return [initial, value => { state.value = typeof value === 'function' ? value(state.value) : value; }]; },
+        text => text,
+    );
+    const savedFetch = globalThis.fetch;
+    const bytes = new TextEncoder().encode('# 会议纪要\n张三：同意。');
+    globalThis.fetch = async () => new Response(new ReadableStream({ start(controller) {
+        controller.enqueue(bytes.slice(0, 5)); controller.enqueue(bytes.slice(5)); controller.close();
+    } }));
+    try {
+        await module.exports.run('recording').generateSummary('template', 'model', 'prompt', 'input');
+        assert.equal(cache.get(JSON.stringify(['summary', 'recording'])).content, '# 会议纪要\n张三：同意。');
+        assert.deepEqual(invalidated, [['summary', 'recording'], ['summaryHistory', 'recording']]);
+        assert.equal(states[0].value, false);
+        assert.equal(states[1].value, '# 会议纪要\n张三：同意。');
+        assert.equal(states[2].value, null);
+    } finally { globalThis.fetch = savedFetch; }
+});
