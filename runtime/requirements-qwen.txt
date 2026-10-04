@@ -1,0 +1,10 @@
+# Integration versions observed in the deployed Qwen runtime.
+# Install a CUDA-compatible torch build separately before this file.
+qwen-asr==0.0.6
+funasr==1.4.16
+transformers==4.57.6
+accelerate==1.12.0
+soundfile==0.14.0
+modelscope==1.40.1
+kaldi-native-fbank==1.22.3
+huggingface-hub==0.36.2
