@@ -16,7 +16,7 @@ func TestSummaryHistoryPreservesGenerations(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, sql := range []string{
-		"CREATE TABLE summaries (id TEXT PRIMARY KEY, transcription_id TEXT, template_id TEXT, model TEXT, content TEXT, created_at DATETIME, updated_at DATETIME)",
+		"CREATE TABLE summaries (id TEXT PRIMARY KEY, transcription_id TEXT, template_id TEXT, model TEXT, content TEXT, status TEXT DEFAULT 'completed', error_message TEXT, created_at DATETIME, updated_at DATETIME)",
 		"CREATE TABLE summary_templates (id TEXT PRIMARY KEY, name TEXT)",
 		"INSERT INTO summary_templates VALUES ('first', '待核实优先'), ('second', '原版')",
 	} {

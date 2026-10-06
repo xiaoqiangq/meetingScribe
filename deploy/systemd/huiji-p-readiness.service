@@ -1,0 +1,10 @@
+[Unit]
+Description=Check Huiji P readiness and recover an unresponsive service
+
+[Service]
+WorkingDirectory=%h/huiji-p
+EnvironmentFile=-%h/huiji-p/.env
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/huiji-p/deploy/systemd/readiness_watch.py
+UMask=0077
+TimeoutStartSec=20

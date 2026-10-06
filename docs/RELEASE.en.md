@@ -31,3 +31,8 @@ Confirm CI on the intended commit before tagging. A version number alone does no
 ## Rollback
 
 If the database remains compatible, switch back to the previous application. If migration is not backward compatible, restore a **consistent pre-upgrade data copy**, validate it in isolation, then switch the service. Replacing the binary alone is not sufficient in that case. Recursive deletion is not a recovery procedure.
+
+
+## v0.1.0-rc.2 publishing
+
+The VERSION file triggers the release workflow on main. Tests, Compose validation and Docker build must pass before the workflow creates the pre-release tag and uploads the archive/checksums. See [candidate notes](RELEASE-NOTES.md) and [systemd helpers](../deploy/systemd/README.md).

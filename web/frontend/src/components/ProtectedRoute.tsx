@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import type { ReactNode } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -7,6 +8,7 @@ interface ProtectedRouteProps {
     children: ReactNode;
 }
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
+    useInterfaceLanguage();
     const { isAuthenticated, requiresRegistration, isInitialized, login } = useAuth();
     // Show loading while initializing
     if (!isInitialized) {

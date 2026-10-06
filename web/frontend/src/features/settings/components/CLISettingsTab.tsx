@@ -1,6 +1,8 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useEffect } from 'react';
 export function CLISettingsTab() {
+    useInterfaceLanguage();
     const [installCmd, setInstallCmd] = useState<string>('');
     const [copied, setCopied] = useState(false);
     const [loading, setLoading] = useState(true);

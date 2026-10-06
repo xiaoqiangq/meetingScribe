@@ -1,8 +1,9 @@
 package api
 
 import (
-	"bufio"
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -58,7 +59,7 @@ func (h *Handler) Summarize(c *gin.Context) {
 	log.Printf("[summarize] start transcription_id=%s provider=%s model=%s content_len=%d", req.TranscriptionID, provider, req.Model, len(req.Content))
 
 	// Stream response with proper headers for real-time delivery
-	c.Header("Content-Type", "text/plain; charset=utf-8")
+	c.Header("Content-Type", "application/x-ndjson; charset=utf-8")
 	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	c.Header("Connection", "keep-alive")
 	c.Header("Transfer-Encoding", "chunked")
@@ -68,123 +69,91 @@ func (h *Handler) Summarize(c *gin.Context) {
 	h.processSummarization(c, req, svc, messages, start)
 }
 
+// Events make a successful end explicit: a disconnected stream is never completion.
 func (h *Handler) processSummarization(c *gin.Context, req SummarizeRequest, svc llm.Service, messages []llm.ChatMessage, start time.Time) {
-	// Allow longer generation time for large transcripts and smaller models
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Minute)
 	defer cancel()
-
-	contentChan, errChan := svc.ChatCompletionStream(ctx, req.Model, messages, 0.0)
-	flusher, _ := c.Writer.(http.Flusher)
-	writer := bufio.NewWriter(c.Writer)
-
-	finalText := ""
-	gotFirstChunk := false
-
-	// Loop handles one chunk/error at a time
-	for {
+	chunks, failures := svc.ChatCompletionStream(ctx, req.Model, messages, 0)
+	var text strings.Builder
+	var streamErr error
+	emit := func(event gin.H) error {
+		if err := json.NewEncoder(c.Writer).Encode(event); err != nil {
+			return err
+		}
+		c.Writer.Flush()
+		return nil
+	}
+	// Both channels must close before success; providers may close chunks before sending an error.
+	for chunks != nil || failures != nil {
 		select {
-		case chunk, ok := <-contentChan:
+		case chunk, ok := <-chunks:
 			if !ok {
-				writer.Flush()
-				if flusher != nil {
-					flusher.Flush()
-				}
-				// Persist summary once streaming completes
-				h.persistSummary(req, finalText)
-				log.Printf("[summarize] complete transcription_id=%s model=%s bytes=%d duration_ms=%d", req.TranscriptionID, req.Model, len(finalText), time.Since(start).Milliseconds())
-				return
+				chunks = nil
+				continue
 			}
-			finalText += chunk
-			_, _ = writer.WriteString(chunk)
-			writer.Flush()
-			if flusher != nil {
-				flusher.Flush()
+			text.WriteString(chunk)
+			if err := emit(gin.H{"type": "chunk", "content": chunk}); err != nil {
+				streamErr = err
+				cancel()
+				chunks = nil
+				failures = nil
 			}
-			if !gotFirstChunk && len(chunk) > 0 {
-				gotFirstChunk = true
-				log.Printf("[summarize] first_chunk transcription_id=%s model=%s at_ms=%d", req.TranscriptionID, req.Model, time.Since(start).Milliseconds())
+		case err, ok := <-failures:
+			if !ok {
+				failures = nil
+				continue
 			}
-		case err := <-errChan:
 			if err != nil {
-				h.handleSummarizeError(c, req, svc, messages, err, finalText, start)
+				streamErr = err
 			}
-			// Persist any partial content on error
-			h.persistSummary(req, finalText)
-			return
 		case <-ctx.Done():
-			// Persist any partial content on timeout/cancel
-			h.persistSummary(req, finalText)
-			log.Printf("[summarize] timeout/cancel transcription_id=%s model=%s bytes=%d duration_ms=%d", req.TranscriptionID, req.Model, len(finalText), time.Since(start).Milliseconds())
-			return
+			streamErr = ctx.Err()
+			chunks = nil
+			failures = nil
 		}
 	}
-}
-
-func (h *Handler) handleSummarizeError(c *gin.Context, req SummarizeRequest, svc llm.Service, messages []llm.ChatMessage, err error, partialText string, start time.Time) {
-	flusher, _ := c.Writer.(http.Flusher)
-	writer := bufio.NewWriter(c.Writer)
-
-	// Best-effort error signal
-	// If streaming is unsupported for this model/org, fall back to non-streaming
-	errStr := err.Error()
-	if strings.Contains(errStr, "\"param\": \"stream\"") || strings.Contains(errStr, "unsupported_value") || strings.Contains(errStr, "must be verified to stream") {
-		log.Printf("[summarize] falling back to non-streaming transcription_id=%s model=%s due to: %v", req.TranscriptionID, req.Model, err)
-		resp, err2 := svc.ChatCompletion(c.Request.Context(), req.Model, messages, 0.0)
-		if err2 != nil || resp == nil || len(resp.Choices) == 0 {
-			log.Printf("[summarize] fallback failed transcription_id=%s model=%s err=%v", req.TranscriptionID, req.Model, err2)
-			_, _ = c.Writer.Write([]byte("\n"))
-			writer.Flush()
-			if flusher != nil {
-				flusher.Flush()
+	if ctx.Err() != nil {
+		streamErr = ctx.Err()
+	}
+	// Streaming fallback is safe only before any content was emitted.
+	if streamErr != nil && text.Len() == 0 && ctx.Err() == nil && (strings.Contains(streamErr.Error(), "unsupported_value") || strings.Contains(streamErr.Error(), "must be verified to stream") || strings.Contains(streamErr.Error(), "\"param\": \"stream\"")) {
+		resp, err := svc.ChatCompletion(ctx, req.Model, messages, 0)
+		if err == nil && resp != nil && len(resp.Choices) > 0 {
+			text.WriteString(resp.Choices[0].Message.Content)
+			streamErr = emit(gin.H{"type": "chunk", "content": text.String()})
+			reason := resp.Choices[0].FinishReason
+			if reason != "stop" && reason != "" {
+				streamErr = fmt.Errorf("summary ended with finish reason: %s", reason)
 			}
-			return
+		} else if err != nil {
+			streamErr = err
 		}
-		content := resp.Choices[0].Message.Content
-		// Write content (appended to partial if any, though likely partial is empty if stream failed immediately)
-		_, _ = writer.WriteString(content)
-		writer.Flush()
-		if flusher != nil {
-			flusher.Flush()
+	}
+	status, message := "completed", ""
+	if streamErr == nil && strings.TrimSpace(text.String()) == "" {
+		streamErr = fmt.Errorf("Model returned an empty summary")
+	}
+	if streamErr != nil {
+		status = "failed"
+		if text.Len() > 0 {
+			status = "partial"
 		}
-		// We should persist the FULL text (partial + fallback), but partialText is passed by value.
-		// However, handleSumarizeError doesn't update partialText in caller.
-		// The caller calls persistSummary(req, finalText) after this function returns.
-		// So we actually need to persist here if we succeed?
-		// Or return the new text?
-		// Since we can't easily update finalText in caller without pointer, let's persist here if success.
-		h.persistSummary(req, partialText+content)
-		log.Printf("[summarize] fallback complete transcription_id=%s model=%s bytes=%d duration_ms=%d", req.TranscriptionID, req.Model, len(partialText+content), time.Since(start).Milliseconds())
-
-		// To avoid double persistence in caller (which uses stale finalText), we need a way to signal "done".
-		// But caller persists anyway.
-		// It's acceptable to double-persist (idempotent updates usually) or just accept that caller persists partial and we persist full.
+		message = streamErr.Error()
+	}
+	sum := &models.Summary{TranscriptionID: req.TranscriptionID, TemplateID: req.TemplateID, Model: req.Model, Content: text.String(), Status: status, ErrorMessage: message}
+	saveCtx, saveCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer saveCancel()
+	if err := h.summaryRepo.SaveSummary(saveCtx, sum); err != nil {
+		_ = emit(gin.H{"type": "error", "status": "failed", "error": "Failed to save summary"})
 		return
 	}
-	_, _ = c.Writer.Write([]byte("\n"))
-	writer.Flush()
-	if flusher != nil {
-		flusher.Flush()
-	}
-	log.Printf("[summarize] error transcription_id=%s model=%s err=%v duration_ms=%d", req.TranscriptionID, req.Model, err, time.Since(start).Milliseconds())
-}
-
-func (h *Handler) persistSummary(req SummarizeRequest, content string) {
-	if req.TranscriptionID == "" || content == "" {
-		return
-	}
-	sum := &models.Summary{
-		TranscriptionID: req.TranscriptionID,
-		TemplateID:      req.TemplateID,
-		Model:           req.Model,
-		Content:         content,
-	}
-	if err := h.summaryRepo.SaveSummary(context.Background(), sum); err != nil {
-		// Fallback: store on the transcription job record
-		_ = h.jobRepo.UpdateSummary(context.Background(), req.TranscriptionID, content)
+	if status == "completed" {
+		_ = h.jobRepo.UpdateSummary(saveCtx, req.TranscriptionID, text.String())
+		_ = emit(gin.H{"type": "done", "status": status, "summary_id": sum.ID})
 	} else {
-		// Also cache on the transcription job for quick access
-		_ = h.jobRepo.UpdateSummary(context.Background(), req.TranscriptionID, content)
+		_ = emit(gin.H{"type": "error", "status": status, "error": message, "summary_id": sum.ID})
 	}
+	log.Printf("[summarize] end transcription_id=%s status=%s bytes=%d duration_ms=%d", req.TranscriptionID, status, text.Len(), time.Since(start).Milliseconds())
 }
 
 // GetSummaryHistory lists saved generations for a single recording, newest first.

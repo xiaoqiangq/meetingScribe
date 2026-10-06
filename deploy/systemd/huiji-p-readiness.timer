@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodic Huiji P readiness check
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+Unit=huiji-p-readiness.service
+
+[Install]
+WantedBy=timers.target

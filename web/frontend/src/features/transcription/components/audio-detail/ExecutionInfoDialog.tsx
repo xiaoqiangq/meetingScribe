@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, } from "@/components/ui/dialog";
 import { Info, Clock, UsersRound } from "lucide-react";
@@ -9,6 +10,7 @@ interface ExecutionInfoDialogProps {
     onClose: (open: boolean) => void;
 }
 export function ExecutionInfoDialog({ audioId, isOpen, onClose }: ExecutionInfoDialogProps) {
+    useInterfaceLanguage();
     const { data: executionData, isLoading } = useExecutionData(audioId);
     return (<Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-4xl w-[95vw] bg-[var(--bg-card)] border-[var(--border-subtle)] shadow-[var(--shadow-float)] max-h-[90vh] overflow-y-auto">
@@ -70,6 +72,7 @@ function MetricCard({ label, value, subtext, highlight = false, className = "" }
     highlight?: boolean;
     className?: string;
 }) {
+    useInterfaceLanguage();
     return (<div className={`bg-[var(--bg-card)] p-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] flex flex-col justify-center ${className}`}>
             <span className="block text-[10px] sm:text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-1">{label}</span>
             <span className={`block font-mono text-sm sm:text-base ${highlight ? 'text-[var(--brand-solid)] font-bold' : 'text-[var(--text-primary)]'}`}>
@@ -84,6 +87,7 @@ function CuratedParamsDisplay({ params, diarizationModel }: {
     params: any;
     diarizationModel?: string;
 }) {
+    useInterfaceLanguage();
     // Determine keys to show based on model_family
     // Common keys for all
     const commonKeys = [

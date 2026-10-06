@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,6 +17,7 @@ import { CLISettingsTab } from "../components/CLISettingsTab";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 export function Settings() {
+    useInterfaceLanguage();
     const { isAdmin } = useCurrentUser();
     const [activeTab, setActiveTab] = useState("account");
     const { getAuthHeaders } = useAuth();

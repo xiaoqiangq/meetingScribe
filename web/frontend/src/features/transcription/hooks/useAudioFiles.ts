@@ -203,6 +203,7 @@ export function useYouTubeDownload() {
 }
 
 export interface Profile {
+    parameters?: {model?: string; language?: string};
     id: string;
     name: string;
     description?: string;
@@ -226,10 +227,11 @@ export function useTranscriptionProfiles() {
 export function useQuickTranscription() {
     const { getAuthHeaders } = useAuth();
     return useMutation({
-        mutationFn: async ({ file, profileName }: { file: File, profileName?: string }) => {
+        mutationFn: async ({ file, profileName, language }: { file: File, profileName?: string, language?: string }) => {
             const formData = new FormData();
             formData.append("audio", file);
             if (profileName) formData.append("profile_name", profileName);
+            if (language) formData.append("language", language);
 
             const response = await fetch("/api/v1/transcription/quick", {
                 method: "POST",

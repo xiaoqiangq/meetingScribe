@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ interface HeaderProps {
     onDownloadComplete?: () => void;
 }
 export function Header({ onFileSelect, onMultiTrackClick, onDownloadComplete }: HeaderProps) {
+    useInterfaceLanguage();
     const navigate = useNavigate();
     const { isAdmin } = useCurrentUser();
     const { logout } = useAuth();

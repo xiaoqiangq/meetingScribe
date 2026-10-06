@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useRef, useEffect } from "react";
 import { Header } from "@/components/Header";
@@ -10,6 +11,7 @@ import { X, CheckCircle, AlertCircle } from "lucide-react";
 import { groupFiles, convertToFileWithType, prepareMultiTrackFiles, hasValidFiles, getFileDescription, validateMultiTrackFiles } from "@/utils/fileProcessor";
 import { useGlobalUpload } from "@/contexts/GlobalUploadContext";
 export function Dashboard() {
+    useInterfaceLanguage();
     // Get upload functionality from global context
     const { handleFileSelect, openMultiTrackDialog, isUploading, uploadProgress, } = useGlobalUpload();
     // Drag and drop state (dashboard-specific UI)

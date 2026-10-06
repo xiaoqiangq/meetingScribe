@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
@@ -37,6 +38,7 @@ interface TranscriptSectionProps {
 export function TranscriptSection({ audioId, currentWordIndex, currentTime, isPlaying, onSeek, transcript, speakerMappings, transcriptMode, autoScrollEnabled, notesOpen, setNotesOpen, speakerRenameOpen, setSpeakerRenameOpen, downloadDialogOpen, setDownloadDialogOpen, downloadFormat, className }: TranscriptSectionProps & {
     className?: string;
 }) {
+    useInterfaceLanguage();
     const isMobile = useIsMobile();
     const isDesktop = useIsDesktop();
     const queryClient = useQueryClient();

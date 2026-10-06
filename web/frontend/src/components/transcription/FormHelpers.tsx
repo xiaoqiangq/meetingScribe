@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import type { ReactNode } from "react";
 import { Label } from "@/components/ui/label";
@@ -15,6 +16,7 @@ interface FormFieldProps {
  * Follows Scriberr design system
  */
 export function FormField({ label, htmlFor, description, optional, children }: FormFieldProps) {
+    useInterfaceLanguage();
     return (<div className="space-y-2">
             <div className="flex items-center gap-2">
                 <Label htmlFor={htmlFor} className="text-sm font-medium text-[var(--text-primary)]">
@@ -43,6 +45,7 @@ interface SectionProps {
  * Section - A grouped section with title and optional description
  */
 export function Section({ title, description, children, className = "" }: SectionProps) {
+    useInterfaceLanguage();
     return (<div className={`space-y-4 ${className}`}>
             <div>
                 <h3 className="text-base font-semibold text-[var(--text-primary)]">{title}</h3>
@@ -60,6 +63,7 @@ interface InfoBannerProps {
  * InfoBanner - Alert/notice banner with consistent styling
  */
 export function InfoBanner({ variant, title, children }: InfoBannerProps) {
+    useInterfaceLanguage();
     const styles = {
         info: {
             bg: 'bg-[var(--brand-light)]',

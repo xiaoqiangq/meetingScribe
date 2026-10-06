@@ -1,6 +1,7 @@
 package models
 
 import (
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,6 +10,11 @@ import (
 
 // TranscriptionJob represents a transcription job record
 type TranscriptionJob struct {
+	IsQuick               bool           `json:"is_quick" gorm:"not null;default:false;index"`
+	ExpiresAt             *time.Time     `json:"expires_at,omitempty" gorm:"index"`
+	QuickCleanupFiles     []string       `json:"-" gorm:"serializer:json;type:text"`
+	QuickCleanedAt        *time.Time     `json:"-"`
+	AudioBytes            int64          `json:"-" gorm:"not null;default:0"`
 	OwnerID               uint           `json:"owner_id" gorm:"index;not null;default:0"`
 	ID                    string         `json:"id" gorm:"primaryKey;type:varchar(36)"`
 	Title                 *string        `json:"title,omitempty" gorm:"type:text"`
@@ -141,6 +147,16 @@ type WhisperXParams struct {
 
 // BeforeCreate sets the ID if not already set
 func (tj *TranscriptionJob) BeforeCreate(tx *gorm.DB) error {
+	if tj.AudioBytes == 0 && tj.IsMultiTrack {
+		for _, track := range tj.MultiTrackFiles {
+			if info, err := os.Stat(track.FilePath); err == nil {
+				tj.AudioBytes += info.Size()
+			}
+		}
+	}
+	if info, err := os.Stat(tj.AudioPath); err == nil {
+		tj.AudioBytes = info.Size()
+	}
 	if owner, ok := RequestOwner(tx.Statement.Context); ok {
 		tj.OwnerID = owner
 	}

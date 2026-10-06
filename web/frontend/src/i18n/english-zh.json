@@ -529,5 +529,21 @@
   "Selected template has no model configured.": "所选模板未配置模型。",
   "Close notes": "关闭笔记",
   "Listen": "试听",
-  "Note": "笔记"
+  "Note": "笔记",
+  "Temporary tasks (available for 6 hours)": "临时任务（6 小时内可找回）",
+  "Temporary tasks": "临时任务",
+  "Choose a temporary task": "选择临时任务",
+  "New transcription": "新建转写",
+  "Waiting in queue...": "排队等待中…",
+  "Incomplete summary": "未完成的纪要",
+  "Incomplete / failed": "未完成／失败",
+  "Connection interrupted; this summary is incomplete.": "连接已中断，此纪要未完成。",
+  "Temporary task expired or is unavailable.": "临时任务已过期或不可用。",
+  "completed": "已完成",
+  "partial": "部分结果",
+  "failed": "失败",
+  "pending": "排队中",
+  "processing": "处理中",
+  "Expires at": "到期时间",
+  "Temporary content expires after 6 hours; files are removed in the background.": "临时内容保留 6 小时，到期不可访问；文件由后台自动清理。"
 }

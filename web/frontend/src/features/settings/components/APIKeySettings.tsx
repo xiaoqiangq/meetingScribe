@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ interface CreatedAPIKey {
     created_at: string;
 }
 export function APIKeySettings() {
+    useInterfaceLanguage();
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [displayDialogOpen, setDisplayDialogOpen] = useState(false);
     const [createdKey, setCreatedKey] = useState<CreatedAPIKey | null>(null);

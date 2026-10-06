@@ -78,6 +78,18 @@ func Initialize(dbPath string) error {
 		return fmt.Errorf("failed to auto migrate: %v", err)
 	}
 
+	// Populate quota accounting for pre-existing recordings using actual file sizes.
+	var existing []models.TranscriptionJob
+	if err := DB.Where("audio_bytes = 0 AND audio_path <> ''").Find(&existing).Error; err != nil {
+		return err
+	}
+	for _, job := range existing {
+		if info, err := os.Stat(job.AudioPath); err == nil && info.Mode().IsRegular() {
+			if err := DB.Model(&job).Update("audio_bytes", info.Size()).Error; err != nil {
+				return err
+			}
+		}
+	}
 	if err := MigrateOwnership(DB); err != nil {
 		return err
 	}

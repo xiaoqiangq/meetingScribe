@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ interface PasswordStrength {
     hasSpecialChar: boolean;
 }
 export function AccountSettings() {
+    useInterfaceLanguage();
     const { getAuthHeaders, logout } = useAuth();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");

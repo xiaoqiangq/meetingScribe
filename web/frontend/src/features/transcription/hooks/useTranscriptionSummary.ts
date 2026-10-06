@@ -49,6 +49,8 @@ export interface SummaryHistoryEntry {
     model: string;
     content: string;
     created_at: string;
+    status: "completed" | "failed" | "partial";
+    error_message?: string;
 }
 export function useSummaryHistory(audioId: string, enabled: boolean) {
     const { getAuthHeaders } = useAuth();
@@ -93,22 +95,28 @@ export function useSummarizer(audioId: string) {
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
             let completedContent = '';
+            let buffer = '';
+            let confirmed = false;
+            const consume = (line: string) => {
+                if (!line.trim()) return;
+                const event = JSON.parse(line);
+                if (event.type === 'chunk') {
+                    completedContent += event.content;
+                    setStreamContent(completedContent);
+                } else if (event.type === 'done' && event.status === 'completed') confirmed = true;
+                else if (event.type === 'error') throw new Error(event.error || 'Summary generation failed');
+            };
             while (true) {
                 const { done, value } = await reader.read();
-                if (done) {
-                    const tail = decoder.decode();
-                    if (tail) {
-                        completedContent += tail;
-                        setStreamContent(prev => prev + tail);
-                    }
-                    break;
+                buffer += done ? decoder.decode() : decoder.decode(value, {stream: true});
+                let newline: number;
+                while ((newline = buffer.indexOf('\n')) >= 0) {
+                    consume(buffer.slice(0, newline));
+                    buffer = buffer.slice(newline + 1);
                 }
-                const chunk = decoder.decode(value, { stream: true });
-                if (chunk) {
-                    completedContent += chunk;
-                    setStreamContent(prev => prev + chunk);
-                }
+                if (done) { consume(buffer); break; }
             }
+            if (!confirmed) throw new Error(translateUI('Connection interrupted; this summary is incomplete.'));
             // Invalidate summary query after successful generation
             if (completedContent)
                 queryClient.setQueryData(["summary", audioId], { content: completedContent });
@@ -120,6 +128,7 @@ export function useSummarizer(audioId: string) {
         }
         finally {
             setIsStreaming(false);
+            void queryClient.invalidateQueries({ queryKey: ["summaryHistory", audioId] });
         }
     };
     return { generateSummary, isStreaming, streamContent, error };

@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, Edit2, MessageSquare, Search, Sparkles } from 'lucide-react';
@@ -21,6 +22,7 @@ export function ChatSessionsSidebar({ transcriptionId, activeSessionId, onSessio
     activeSessionId?: string;
     onSessionChange: (id: string | null) => void;
 }) {
+    useInterfaceLanguage();
     const { getAuthHeaders } = useAuth();
     const { subscribeSessionTitleUpdated, subscribeTitleGenerating } = useChatEvents();
     const [sessions, setSessions] = useState<ChatSession[]>([]);

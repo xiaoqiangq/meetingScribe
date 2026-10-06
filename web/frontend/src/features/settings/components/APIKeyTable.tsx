@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ interface APIKeyTableProps {
     onKeyChange: () => void;
 }
 export function APIKeyTable({ refreshTrigger, onKeyChange }: APIKeyTableProps) {
+    useInterfaceLanguage();
     const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
     const [loading, setLoading] = useState(true);
     const [deletingId, setDeletingId] = useState<string | null>(null);

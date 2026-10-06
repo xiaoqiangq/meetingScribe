@@ -31,3 +31,8 @@
 ## 回退
 
 若只变更应用且数据库兼容，可切回旧应用。若迁移不向后兼容，需恢复升级前的**一致性数据副本**并在隔离目录验证，再切换服务。回退不能靠把旧二进制硬套到新数据库。不要用递归删除恢复环境。
+
+
+## v0.1.0-rc.2 publishing
+
+The VERSION file triggers the release workflow on main. Tests, Compose validation and Docker build must pass before the workflow creates the pre-release tag and uploads the archive/checksums. See [candidate notes](RELEASE-NOTES.md) and [systemd helpers](../deploy/systemd/README.md).

@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ interface APIKeyDisplayDialogProps {
     onClose: () => void;
 }
 export function APIKeyDisplayDialog({ open, onOpenChange, apiKey, onClose, }: APIKeyDisplayDialogProps) {
+    useInterfaceLanguage();
     const [copied, setCopied] = useState(false);
     const handleCopy = async () => {
         if (!apiKey?.key)

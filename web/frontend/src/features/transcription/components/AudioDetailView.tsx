@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
@@ -26,6 +27,7 @@ interface AudioDetailViewProps {
     audioId?: string; // Optional prop if used as a controlled component, though mainly route-based
 }
 export const AudioDetailView = function AudioDetailView({ audioId: propAudioId }: AudioDetailViewProps) {
+    useInterfaceLanguage();
     const { audioId: paramAudioId } = useParams<{
         audioId: string;
     }>();
@@ -65,8 +67,14 @@ export const AudioDetailView = function AudioDetailView({ audioId: propAudioId }
             if (segment.speaker)
                 ids.add(segment.speaker);
         });
-        return Array.from(ids);
-    }, [transcript]);
+        const byName = new Map<string,string>();
+        for (const id of ids) {
+            const name = speakerMappings[id]?.trim();
+            const key = name || id;
+            if (!byName.has(key)) byName.set(key, id);
+        }
+        return Array.from(byName.values());
+    }, [transcript, speakerMappings]);
     // Download Logic
     const { downloadSRT } = useTranscriptDownload();
     // State for Split View
@@ -344,6 +352,7 @@ export const AudioDetailView = function AudioDetailView({ audioId: propAudioId }
 // Wrapper to handle transcript word index calculation without polluting main view
 // Wrapper to handle word index calc
 function TranscriptSectionWrapper({ audioId, currentTime, transcript, isPlaying, ...props }: any) {
+    useInterfaceLanguage();
     // If transcript not passed (loading?), handle it
     let currentWordIndex = null;
     if (transcript?.word_segments) {

@@ -34,6 +34,8 @@ type SummarySetting struct {
 
 // Summary stores a generated summary linked to a transcription
 type Summary struct {
+	Status          string    `json:"status" gorm:"not null;default:completed"`
+	ErrorMessage    string    `json:"error_message,omitempty"`
 	ID              string    `json:"id" gorm:"primaryKey;type:varchar(36)"`
 	TranscriptionID string    `json:"transcription_id" gorm:"type:varchar(36);index;not null"`
 	TemplateID      *string   `json:"template_id,omitempty" gorm:"type:varchar(36)"`
@@ -48,6 +50,8 @@ type Summary struct {
 
 // SummaryHistoryEntry is a read-only view, including the associated template name.
 type SummaryHistoryEntry struct {
+	Status       string    `json:"status"`
+	ErrorMessage string    `json:"error_message,omitempty"`
 	ID           string    `json:"id"`
 	TemplateID   *string   `json:"template_id"`
 	TemplateName string    `json:"template_name"`

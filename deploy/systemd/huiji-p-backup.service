@@ -1,0 +1,11 @@
+[Unit]
+Description=Verified Huiji P backup
+
+[Service]
+WorkingDirectory=%h/huiji-p
+EnvironmentFile=-%h/huiji-p/.env
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/huiji-p/deploy/systemd/verified_backup.py
+UMask=0077
+Nice=15
+TimeoutStartSec=4h

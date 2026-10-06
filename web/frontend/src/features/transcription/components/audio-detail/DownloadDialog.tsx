@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ interface DownloadDialogProps {
     initialFormat?: 'txt' | 'json';
 }
 export function DownloadDialog({ audioId, isOpen, onClose, initialFormat = 'txt' }: DownloadDialogProps) {
+    useInterfaceLanguage();
     const { data: transcript } = useTranscript(audioId, true);
     const { data: audioFile } = useAudioDetail(audioId);
     const { data: speakerMappings = {} } = useSpeakerMappings(audioId, true);

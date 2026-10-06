@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { QWEN_LANGUAGE_OPTIONS } from "./transcription/qwenLanguages";
 import { t as translateUI } from "@/i18n";
 import { useState, useEffect, useCallback } from "react";
@@ -25,6 +26,7 @@ interface TranscribeDDialogProps {
     title?: string;
 }
 export function TranscribeDDialog({ open, onOpenChange, onStartTranscription, loading = false, title, }: TranscribeDDialogProps) {
+    useInterfaceLanguage();
     const { getAuthHeaders } = useAuth();
     const [profiles, setProfiles] = useState<TranscriptionProfile[]>([]);
     const [selectedProfileId, setSelectedProfileId] = useState<string>("");

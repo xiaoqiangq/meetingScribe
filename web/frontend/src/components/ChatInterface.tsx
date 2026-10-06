@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { Send, User, MessageCircle, Copy, Check, Sparkles, Brain, ChevronDown } from "lucide-react";
@@ -48,6 +49,7 @@ function ThinkingBlock({ content, isStreaming = false }: {
     content: string;
     isStreaming?: boolean;
 }) {
+    useInterfaceLanguage();
     const [expanded, setExpanded] = useState(isStreaming); // Auto-expand when streaming
     // Auto-expand when streaming starts
     useEffect(() => {
@@ -413,6 +415,7 @@ export const ChatInterface = memo(function ChatInterface({ transcriptionId, acti
     // Code block with copy button
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const PreBlock = (props: any) => {
+    useInterfaceLanguage();
         const preRef = useRef<HTMLPreElement>(null);
         const [copied, setCopied] = useState(false);
         const handleCopy = async () => {

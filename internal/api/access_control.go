@@ -47,7 +47,7 @@ func (h *Handler) ResourceAccess() gin.HandlerFunc {
 }
 func (h *Handler) requireOwnedJob(c *gin.Context, id string) bool {
 	job, err := h.jobRepo.FindByID(c.Request.Context(), id)
-	if err != nil || job.OwnerID != c.GetUint("user_id") || job.OwnerID == 0 {
+	if err != nil || job.IsQuick || job.OwnerID != c.GetUint("user_id") || job.OwnerID == 0 {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Not found"})
 		return false
 	}

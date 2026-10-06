@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -44,6 +45,7 @@ const selectItemClassName = `
   focus:bg-[var(--brand-light)] focus:text-[var(--brand-solid)]
 `;
 export function SummaryTemplateDialog({ open, onOpenChange, onSave, initial }: SummaryTemplateDialogProps) {
+    useInterfaceLanguage();
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [model, setModel] = useState("");

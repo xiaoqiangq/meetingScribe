@@ -109,7 +109,7 @@ func (r *jobRepository) ListWithParams(ctx context.Context, offset, limit int, s
 	var jobs []models.TranscriptionJob
 	var count int64
 
-	db := r.db.WithContext(ctx).Model(&models.TranscriptionJob{})
+	db := r.db.WithContext(ctx).Model(&models.TranscriptionJob{}).Where("is_quick = ?", false)
 	if owner, ok := models.RequestOwner(ctx); ok {
 		db = db.Where("owner_id = ?", owner)
 	}
@@ -282,9 +282,18 @@ func NewProfileRepository(db *gorm.DB) ProfileRepository {
 
 func (r *profileRepository) FindDefault(ctx context.Context) (*models.TranscriptionProfile, error) {
 	var profile models.TranscriptionProfile
-	err := r.db.WithContext(ctx).Where("is_default = ?", true).First(&profile).Error
-	if err != nil {
-		return nil, err
+	result := r.db.WithContext(ctx).Where("is_default = ?", true).Limit(1).Find(&profile)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		result = r.db.WithContext(ctx).Order("created_at ASC, id ASC").Limit(1).Find(&profile)
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil, gorm.ErrRecordNotFound
+		}
 	}
 	return &profile, nil
 }
@@ -365,7 +374,7 @@ func (r *summaryRepository) SaveSummary(ctx context.Context, summary *models.Sum
 
 func (r *summaryRepository) GetLatestSummary(ctx context.Context, transcriptionID string) (*models.Summary, error) {
 	var summary models.Summary
-	err := r.db.WithContext(ctx).Where("transcription_id = ?", transcriptionID).Order("created_at DESC").First(&summary).Error
+	err := r.db.WithContext(ctx).Where("transcription_id = ? AND status = ?", transcriptionID, "completed").Order("created_at DESC").First(&summary).Error
 	if err != nil {
 		return nil, err
 	}
@@ -375,7 +384,7 @@ func (r *summaryRepository) GetLatestSummary(ctx context.Context, transcriptionI
 func (r *summaryRepository) ListSummaryHistory(ctx context.Context, transcriptionID string) ([]models.SummaryHistoryEntry, error) {
 	entries := make([]models.SummaryHistoryEntry, 0)
 	err := r.db.WithContext(ctx).Table("summaries").
-		Select("summaries.id, summaries.template_id, COALESCE(summary_templates.name, '') AS template_name, summaries.model, summaries.content, summaries.created_at").
+		Select("summaries.id, summaries.template_id, COALESCE(summary_templates.name, '') AS template_name, summaries.model, summaries.content, summaries.created_at, summaries.status, summaries.error_message").
 		Joins("LEFT JOIN summary_templates ON summary_templates.id = summaries.template_id").
 		Where("summaries.transcription_id = ?", transcriptionID).
 		Order("summaries.created_at DESC, summaries.id DESC").Scan(&entries).Error
@@ -647,4 +656,11 @@ func (r *refreshTokenRepository) Revoke(ctx context.Context, id uint) error {
 
 func (r *refreshTokenRepository) RevokeByHash(ctx context.Context, hash string) error {
 	return r.db.WithContext(ctx).Model(&models.RefreshToken{}).Where("hashed = ?", hash).Update("revoked", true).Error
+}
+
+// CountActiveByOwner includes both library and temporary jobs.
+func (r *jobRepository) CountActiveByOwner(ctx context.Context, owner uint) (int64, error) {
+	var n int64
+	err := r.db.WithContext(ctx).Model(&models.TranscriptionJob{}).Where("owner_id = ? AND status IN ?", owner, []models.JobStatus{models.StatusPending, models.StatusProcessing}).Count(&n).Error
+	return n, err
 }

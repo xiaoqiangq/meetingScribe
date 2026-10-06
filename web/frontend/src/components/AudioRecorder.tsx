@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useEffect, useRef } from "react";
 import WaveSurfer from "wavesurfer.js";
@@ -13,6 +14,7 @@ interface AudioRecorderProps {
     onRecordingComplete: (blob: Blob, title: string) => void;
 }
 export function AudioRecorder({ isOpen, onClose, onRecordingComplete, }: AudioRecorderProps) {
+    useInterfaceLanguage();
     const [wavesurfer, setWavesurfer] = useState<WaveSurfer | null>(null);
     const [record, setRecord] = useState<RecordPlugin | null>(null);
     const [isRecording, setIsRecording] = useState(false);

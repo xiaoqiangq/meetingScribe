@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { getLocale } from "@/i18n";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, } from "@/components/ui/dialog";
@@ -9,7 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { useState, useEffect } from "react";
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
-import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import rehypeHighlight from 'rehype-highlight';
 import { useSummaryTemplates, useSummarizer, useExistingSummary, useSummaryHistory } from "@/features/transcription/hooks/useTranscriptionSummary";
@@ -25,6 +26,7 @@ interface SummaryDialogProps {
     llmReady: boolean | null;
 }
 export function SummaryDialog({ audioId, isOpen, onClose, llmReady }: SummaryDialogProps) {
+    useInterfaceLanguage();
     const { toast } = useToast();
     const { data: templates = [], isLoading: templatesLoading } = useSummaryTemplates();
     const { data: existingSummary, isLoading: summaryLoading } = useExistingSummary(audioId, isOpen);
@@ -43,7 +45,8 @@ export function SummaryDialog({ audioId, isOpen, onClose, llmReady }: SummaryDia
     const [selectedHistoryId, setSelectedHistoryId] = useState('');
     const selectedHistory = history.find(entry => entry.id === selectedHistoryId);
     const rawContent = selectedHistory?.content ?? (streamContent || existingSummary?.content || history[0]?.content || '');
-    const displayedError = selectedHistory ? null : error;
+    const displayedHistory = selectedHistory || (!streamContent && !existingSummary?.content ? history[0] : undefined);
+    const displayedError = displayedHistory ? (displayedHistory.status !== 'completed' ? displayedHistory.error_message || translateUI('Incomplete summary') : null) : error;
     const displayedContent = summaryVersion === 'clean' ? cleanSummaryAnnotations(rawContent) : rawContent;
     const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
     // Auto-show existing summary if available and not streaming
@@ -130,7 +133,7 @@ export function SummaryDialog({ audioId, isOpen, onClose, llmReady }: SummaryDia
                                         <span className="w-1.5 h-1.5 bg-[var(--brand-solid)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}/>
                                         <span className="w-1.5 h-1.5 bg-[var(--brand-solid)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}/>
                                     </span>
-                                </>) : (<span>{displayedError ? 'Generation failed' : 'Summary ready'}</span>)}
+                                </>) : (<span>{displayedError ? translateUI('Incomplete / failed') : translateUI('Summary ready')}</span>)}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -140,7 +143,7 @@ export function SummaryDialog({ audioId, isOpen, onClose, llmReady }: SummaryDia
                             <select id="summary-history" value={selectedHistoryId} onChange={event => setSelectedHistoryId(event.target.value)} disabled={isStreaming || isPreparing || historyLoading} className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)]">
                                 <option value="">{translateUI("\u6700\u65B0\u751F\u6210\u7ED3\u679C")}</option>
                                 {history.map(entry => <option key={entry.id} value={entry.id}>
-                                    {entry.template_name || translateUI("\u6A21\u677F\u672A\u8BB0\u5F55/\u5DF2\u5220\u9664")} · {new Date(entry.created_at).toLocaleString(getLocale(), { timeZone: 'Asia/Shanghai', hour12: false })} · {entry.id.slice(0, 8)}
+                                    {translateUI(entry.status || "completed")} · {entry.template_name || translateUI("\u6A21\u677F\u672A\u8BB0\u5F55/\u5DF2\u5220\u9664")} · {new Date(entry.created_at).toLocaleString(getLocale(), { timeZone: 'Asia/Shanghai', hour12: false })} · {entry.id.slice(0, 8)}
                                 </option>)}
                             </select>
                             <p className="text-xs text-[var(--text-tertiary)]">{historyError ? translateUI("\u5386\u53F2\u7EAA\u8981\u8BFB\u53D6\u5931\u8D25\uFF0C\u8BF7\u5173\u95ED\u540E\u91CD\u8BD5\u3002") : (translateUI("\u5171 ") + history.length + translateUI(" \u4EFD\u5386\u53F2\u7EAA\u8981\uFF1B\u590D\u5236\u548C\u4E0B\u8F7D\u4F7F\u7528\u5F53\u524D\u9009\u4E2D\u7684\u7ED3\u679C\u3002"))}</p>
@@ -164,7 +167,8 @@ export function SummaryDialog({ audioId, isOpen, onClose, llmReady }: SummaryDia
 
                         {/* Content area - no inner card, full width, reading font */}
                         <div className="min-h-[200px] max-h-[55vh] overflow-y-auto font-reading">
-                            {displayedError ? (<p className="text-sm text-[var(--error)]">{displayedError}</p>) : isStreaming && !streamContent ? (
+                            {displayedError && <p role="alert" className="text-sm text-[var(--error)] mb-3">{displayedError}</p>}
+                            {isStreaming && !streamContent ? (
             /* Generating animation while waiting for first chunk */
             <div className="flex flex-col items-center justify-center py-12 text-[var(--text-tertiary)]">
                                     <div className="relative h-12 w-12 mb-4">
@@ -175,8 +179,11 @@ export function SummaryDialog({ audioId, isOpen, onClose, llmReady }: SummaryDia
                                     <p className="text-sm font-medium">{translateUI("Generating summary...")}</p>
                                     <p className="text-xs mt-1">{translateUI("This may take a moment")}</p>
                                 </div>) : (<div className="prose prose-stone dark:prose-invert max-w-none text-[#171717] dark:text-[#EDEDED] leading-relaxed">
-                                    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeRaw as any, rehypeKatex as any, rehypeHighlight as any]} // eslint-disable-line @typescript-eslint/no-explicit-any
+                                    <ReactMarkdown skipHtml remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[ rehypeKatex as any, rehypeHighlight as any]} // eslint-disable-line @typescript-eslint/no-explicit-any
              components={{
+                    table: ({...props}) => <div className="overflow-x-auto"><table className="w-full border-collapse text-sm" {...props}/></div>,
+                    th: ({...props}) => <th className="border border-[var(--border-subtle)] bg-[var(--bg-main)] p-2 text-left" {...props}/>,
+                    td: ({...props}) => <td className="border border-[var(--border-subtle)] p-2 align-top" {...props}/>,
                     p: ({ ...props }) => <p className="text-[#525252] dark:text-[#A3A3A3] leading-7 mb-4" {...props}/>,
                     h1: ({ ...props }) => <h1 className="text-[#171717] dark:text-[#EDEDED] font-bold text-2xl mt-6 mb-4" {...props}/>,
                     h2: ({ ...props }) => <h2 className="text-[#171717] dark:text-[#EDEDED] font-bold text-xl mt-6 mb-3" {...props}/>,

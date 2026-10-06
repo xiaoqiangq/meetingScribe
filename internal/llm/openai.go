@@ -134,7 +134,7 @@ func (s *OpenAIService) GetModels(ctx context.Context) ([]string, error) {
 		} else {
 			// If custom baseURL → return all models
 			chatModels = append(chatModels, model.ID)
-    	}
+		}
 	}
 
 	return chatModels, nil
@@ -241,16 +241,17 @@ func (s *OpenAIService) ChatCompletionStream(ctx context.Context, model string, 
 
 		scanner := bufio.NewScanner(resp.Body)
 		loggedFirst := false
+		completedStop := false
 		for scanner.Scan() {
 			line := scanner.Text()
 
 			// Skip empty lines and comments
-			if line == "" || !strings.HasPrefix(line, "data: ") {
+			if line == "" || !strings.HasPrefix(line, "data:") {
 				continue
 			}
 
 			// Remove "data: " prefix
-			data := strings.TrimPrefix(line, "data: ")
+			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 
 			// Check for end of stream
 			if data == "[DONE]" {
@@ -261,8 +262,19 @@ func (s *OpenAIService) ChatCompletionStream(ctx context.Context, model string, 
 			// Parse the JSON chunk
 			var chunk ChatStreamResponse
 			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-				// Skip invalid JSON chunks
-				continue
+				errorChan <- fmt.Errorf("invalid provider stream data")
+				return
+			}
+
+			var envelope struct {
+				Error *struct {
+					Message string `json:"message"`
+				} `json:"error"`
+			}
+			_ = json.Unmarshal([]byte(data), &envelope)
+			if envelope.Error != nil {
+				errorChan <- fmt.Errorf("provider stream error: %s", envelope.Error.Message)
+				return
 			}
 
 			// Extract content from the chunk
@@ -277,10 +289,22 @@ func (s *OpenAIService) ChatCompletionStream(ctx context.Context, model string, 
 					log.Printf("[openai] chat stream first content model=%s", model)
 				}
 			}
+			if len(chunk.Choices) > 0 {
+				reason := chunk.Choices[0].FinishReason
+				if reason == "stop" {
+					completedStop = true
+				}
+				if reason != "" && reason != "stop" {
+					errorChan <- fmt.Errorf("summary ended with finish reason: %s", reason)
+					return
+				}
+			}
 		}
 
 		if err := scanner.Err(); err != nil {
 			errorChan <- fmt.Errorf("error reading stream: %w", err)
+		} else if !completedStop {
+			errorChan <- fmt.Errorf("Provider stream ended before completion")
 		}
 	}()
 

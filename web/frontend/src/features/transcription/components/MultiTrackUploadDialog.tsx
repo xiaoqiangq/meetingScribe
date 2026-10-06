@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ interface FileWithPreview {
     isApu: boolean;
 }
 export function MultiTrackUploadDialog({ open, onOpenChange, onMultiTrackUpload, prePopulatedFiles, prePopulatedAupFile, prePopulatedTitle, }: MultiTrackUploadDialogProps) {
+    useInterfaceLanguage();
     const [title, setTitle] = useState("");
     const [files, setFiles] = useState<FileWithPreview[]>([]);
     // Effect to populate dialog with pre-populated data from drag-and-drop

@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import type { Note } from "@/features/transcription/hooks/useTranscriptionNotes";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ interface NotesSidebarProps {
     onJumpTo: (time: number) => void;
 }
 export function NotesSidebar({ notes, onEdit, onDelete, onJumpTo }: NotesSidebarProps) {
+    useInterfaceLanguage();
     const [editingId, setEditingId] = useState<string | null>(null);
     const [draft, setDraft] = useState("");
     const [copiedId, setCopiedId] = useState<string | null>(null);

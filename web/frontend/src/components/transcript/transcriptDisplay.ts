@@ -71,7 +71,7 @@ export function prepareTranscriptForDisplay<T extends DisplayTranscript>(transcr
 export function shouldStartNewParagraph(previousText: string, nextText: string,
     previousStart: number, nextEnd: number): boolean {
     const tooLong = previousText.length + nextText.length > 220 || nextEnd - previousStart > 45;
-    return tooLong && sentenceEnd.test(previousText);
+    return (tooLong && sentenceEnd.test(previousText)) || previousText.length + nextText.length > 440 || nextEnd - previousStart > 90;
 }
 
 export function splitDisplayWordsIntoSentences<T extends DisplayWord>(words: T[]): T[][] {
@@ -79,7 +79,7 @@ export function splitDisplayWordsIntoSentences<T extends DisplayWord>(words: T[]
     let current: T[] = [];
     for (const word of words) {
         current.push(word);
-        if (sentenceEnd.test(word.word)) {
+        if (sentenceEnd.test(word.word) || current.map(w => w.word).join('').length >= 220) {
             sentences.push(current);
             current = [];
         }

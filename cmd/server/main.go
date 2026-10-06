@@ -138,7 +138,9 @@ func main() {
 
 	// Initialize task queue
 	logger.Startup("queue", "Starting background processing")
-	taskQueue := queue.NewTaskQueue(2, unifiedProcessor, jobRepo) // 2 workers
+	taskQueue := queue.NewTaskQueue(0, unifiedProcessor, jobRepo)
+	quickTranscriptionService.SetEnqueue(taskQueue.EnqueueJob)
+	defer quickTranscriptionService.Close()
 	taskQueue.Start()
 	defer taskQueue.Stop()
 
@@ -173,8 +175,12 @@ func main() {
 
 	// Create server
 	srv := &http.Server{
-		Addr:    cfg.Host + ":" + cfg.Port,
-		Handler: router,
+		Addr:              cfg.Host + ":" + cfg.Port,
+		Handler:           router,
+		ReadTimeout:       30 * time.Minute,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	// Start server in a goroutine

@@ -64,13 +64,17 @@ type UnifiedTranscriptionService struct {
 
 // NewUnifiedTranscriptionService creates a new unified transcription service
 func NewUnifiedTranscriptionService(jobRepo repository.JobRepository) *UnifiedTranscriptionService {
+	outputDirectory := os.Getenv("TRANSCRIPTS_DIR")
+	if outputDirectory == "" {
+		outputDirectory = "data/transcripts"
+	}
 	return &UnifiedTranscriptionService{
 		registry:        registry.GetRegistry(),
 		pipeline:        pipeline.NewProcessingPipeline(),
 		preprocessors:   make(map[string]interfaces.Preprocessor),
 		postprocessors:  make(map[string]interfaces.Postprocessor),
 		tempDirectory:   "data/temp",
-		outputDirectory: "data/transcripts",
+		outputDirectory: outputDirectory,
 		defaultModelIDs: map[string]string{
 			"transcription": ModelWhisperX,
 			"diarization":   ModelPyannote,
@@ -120,6 +124,14 @@ func (u *UnifiedTranscriptionService) ProcessJob(ctx context.Context, jobID stri
 		return fmt.Errorf("failed to get job: %w", err)
 	}
 
+	if job.IsQuick && job.ExpiresAt != nil {
+		if !time.Now().Before(*job.ExpiresAt) {
+			return fmt.Errorf("temporary transcription expired before processing")
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, *job.ExpiresAt)
+		defer cancel()
+	}
 	// Create execution record
 	execution := &models.TranscriptionJobExecution{
 		TranscriptionJobID: jobID,
@@ -227,6 +239,15 @@ func (u *UnifiedTranscriptionService) processSingleTrackJob(ctx context.Context,
 		OutputDirectory: filepath.Join(u.outputDirectory, job.ID),
 		TempDirectory:   u.tempDirectory,
 		Metadata:        map[string]string{},
+	}
+
+	if job.IsQuick {
+		// All retained processing scratch belongs to the expiring task.
+		procCtx.TempDirectory = filepath.Join(procCtx.OutputDirectory, "scratch")
+		if err := os.MkdirAll(procCtx.TempDirectory, 0700); err != nil {
+			return err
+		}
+		procCtx.Metadata["quick_scratch"] = procCtx.TempDirectory
 	}
 
 	// Create output directory

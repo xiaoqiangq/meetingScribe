@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion, useAnimation, type PanInfo } from "framer-motion";
@@ -28,6 +29,7 @@ const LONG_PRESS_CANCEL_DISTANCE = 8;
  * - After swipe, clicks are suppressed for a short window
  */
 export function SwipeableItem({ children, onTranscribe, onTranscribeAdvanced, onDelete, onStop, isProcessing = false, isSelectionMode = false, shouldShowHint = false, onHintComplete, onSwipeStateChange, }: SwipeableItemProps) {
+    useInterfaceLanguage();
     const controls = useAnimation();
     const isMobile = useIsMobile();
     // Gesture state tracking

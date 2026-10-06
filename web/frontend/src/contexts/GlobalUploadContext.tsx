@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { createContext, useContext, useState, useCallback, type PropsWithChildren, } from "react";
 import { useLocation } from "react-router-dom";
@@ -30,6 +31,7 @@ interface GlobalUploadContextValue {
 }
 const GlobalUploadContext = createContext<GlobalUploadContextValue | null>(null);
 export function GlobalUploadProvider({ children }: PropsWithChildren) {
+    useInterfaceLanguage();
     const { mutateAsync: uploadFile } = useAudioUpload();
     const { mutateAsync: uploadMultiTrack } = useMultiTrackUpload();
     const { toast } = useToast();

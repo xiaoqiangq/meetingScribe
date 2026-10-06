@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -11,6 +12,7 @@ export function LongAudioUploadDialog({ open, onOpenChange }: {
     open: boolean;
     onOpenChange: (value: boolean) => void;
 }) {
+    useInterfaceLanguage();
     const selection = useRef(0);
     const [file, setFile] = useState<File>();
     const [times, setTimes] = useState('');

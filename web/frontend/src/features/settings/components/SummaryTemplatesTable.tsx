@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ interface SummaryTemplatesTableProps {
     disabled?: boolean;
 }
 export function SummaryTemplatesTable({ onEdit, refreshTrigger = 0, disabled = false }: SummaryTemplatesTableProps) {
+    useInterfaceLanguage();
     const { getAuthHeaders } = useAuth();
     const [items, setItems] = useState<SummaryTemplate[]>([]);
     const [loading, setLoading] = useState(true);

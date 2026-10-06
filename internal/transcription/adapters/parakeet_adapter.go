@@ -123,6 +123,16 @@ func (p *ParakeetAdapter) GetSupportedModels() []string {
 
 // PrepareEnvironment sets up the Parakeet environment
 func (p *ParakeetAdapter) PrepareEnvironment(ctx context.Context) error {
+	if os.Getenv("MODEL_AUTO_PROVISION") == "false" {
+		info, err := os.Stat(filepath.Join(p.envPath, "parakeet-tdt-0.6b-v3.nemo"))
+		if err != nil || info.Size() < 1024*1024 {
+			return fmt.Errorf("model parakeet-tdt-0.6b-v3.nemo is not provisioned; automatic downloads are disabled")
+		}
+		if !CheckEnvironmentReady(p.envPath, "import nemo.collections.asr") {
+			return fmt.Errorf("NeMo runtime is not provisioned; automatic installation is disabled")
+		}
+	}
+
 	logger.Info("Preparing NVIDIA Parakeet environment", "env_path", p.envPath)
 
 	// Check if environment is already ready (using cache to speed up repeated checks)

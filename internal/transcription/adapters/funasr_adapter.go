@@ -177,6 +177,10 @@ func (a *FunASRAdapter) Transcribe(ctx context.Context, input interfaces.AudioIn
 	}
 	cmd := exec.CommandContext(ctx, python, args...)
 	cmd.Env = append(os.Environ(), "MODELSCOPE_CACHE="+filepath.Join(a.envPath, "modelscope-cache"))
+	if scratch := procCtx.Metadata["quick_scratch"]; scratch != "" {
+		cmd.Env = append(cmd.Env, "TMPDIR="+scratch, "TEMP="+scratch, "TMP="+scratch)
+	}
+
 	if qwen {
 		cmd.Env = append(cmd.Env,
 			"HF_HOME="+filepath.Join(a.envPath, "hf-cache"),

@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { Plus, Ear } from "lucide-react";
 import type { SelectionMenuState } from "@/features/transcription/hooks/useSelectionMenu";
@@ -8,6 +9,7 @@ interface TranscriptSelectionMenuProps {
     onListenFromHere: () => void;
 }
 export function TranscriptSelectionMenu({ menuState, onAddNote, onListenFromHere }: TranscriptSelectionMenuProps) {
+    useInterfaceLanguage();
     const isDesktop = useIsDesktop();
     if (!menuState || !menuState.visible)
         return null;

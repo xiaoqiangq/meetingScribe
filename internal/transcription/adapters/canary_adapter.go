@@ -162,6 +162,16 @@ func (c *CanaryAdapter) GetSupportedModels() []string {
 
 // PrepareEnvironment sets up the Canary environment (shared with Parakeet)
 func (c *CanaryAdapter) PrepareEnvironment(ctx context.Context) error {
+	if os.Getenv("MODEL_AUTO_PROVISION") == "false" {
+		info, err := os.Stat(filepath.Join(c.envPath, "canary-1b-v2.nemo"))
+		if err != nil || info.Size() < 1024*1024 {
+			return fmt.Errorf("model canary-1b-v2.nemo is not provisioned; automatic downloads are disabled")
+		}
+		if !CheckEnvironmentReady(c.envPath, "import nemo.collections.asr") {
+			return fmt.Errorf("NeMo runtime is not provisioned; automatic installation is disabled")
+		}
+	}
+
 	logger.Info("Preparing NVIDIA Canary environment", "env_path", c.envPath)
 
 	// Check if environment is already ready (using cache to speed up repeated checks)

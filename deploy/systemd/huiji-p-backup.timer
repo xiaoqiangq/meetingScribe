@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily verified Huiji P database backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=5m
+Unit=huiji-p-backup.service
+
+[Install]
+WantedBy=timers.target

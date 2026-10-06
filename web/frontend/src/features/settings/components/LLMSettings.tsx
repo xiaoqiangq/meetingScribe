@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ interface LLMConfig {
     updated_at?: string;
 }
 export function LLMSettings() {
+    useInterfaceLanguage();
     const [config, setConfig] = useState<LLMConfig>({
         provider: "ollama",
         is_active: false,

@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useEffect, useRef } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -14,6 +15,7 @@ interface NoteEditorDialogProps {
     onCancel: () => void;
 }
 export function NoteEditorDialog({ isOpen, quote, position, onSave, onCancel }: NoteEditorDialogProps) {
+    useInterfaceLanguage();
     const isMobile = useIsMobile();
     const [content, setContent] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);

@@ -86,7 +86,8 @@ type ollamaChatResponse struct {
 		Role    string `json:"role"`
 		Content string `json:"content"`
 	} `json:"message"`
-	Done bool `json:"done"`
+	Done       bool   `json:"done"`
+	DoneReason string `json:"done_reason"`
 }
 
 // ChatCompletion performs a non-streaming chat completion against Ollama
@@ -204,7 +205,8 @@ func (s *OllamaService) ChatCompletionStream(ctx context.Context, model string, 
 			}
 			var chunk ollamaChatResponse
 			if err := json.Unmarshal([]byte(line), &chunk); err != nil {
-				continue
+				errorChan <- fmt.Errorf("invalid provider stream data")
+				return
 			}
 			if chunk.Message.Content != "" {
 				select {
@@ -214,11 +216,16 @@ func (s *OllamaService) ChatCompletionStream(ctx context.Context, model string, 
 				}
 			}
 			if chunk.Done {
+				if chunk.DoneReason != "" && chunk.DoneReason != "stop" {
+					errorChan <- fmt.Errorf("summary ended with finish reason: %s", chunk.DoneReason)
+				}
 				return
 			}
 		}
 		if err := scanner.Err(); err != nil {
 			errorChan <- fmt.Errorf("error reading stream: %w", err)
+		} else {
+			errorChan <- fmt.Errorf("Provider stream ended before completion")
 		}
 	}()
 

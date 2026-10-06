@@ -1,10 +1,12 @@
 package api
 
 import (
+	"net/http"
 	"scriberr/internal/auth"
 	"scriberr/internal/web"
 	"scriberr/pkg/logger"
 	"scriberr/pkg/middleware"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,6 +20,13 @@ func SetupRoutes(handler *Handler, authService *auth.AuthService) *gin.Engine {
 	// Create Gin router without default middleware
 	router := gin.New()
 
+	_ = router.SetTrustedProxies(nil)
+	router.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") && !strings.Contains(c.Request.URL.Path, "/upload") && c.Request.URL.Path != "/api/v1/transcription/quick" {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4<<20)
+		}
+		c.Next()
+	})
 	// Add recovery middleware
 	router.Use(gin.Recovery())
 
@@ -64,6 +73,7 @@ func SetupRoutes(handler *Handler, authService *auth.AuthService) *gin.Engine {
 
 	// Health check endpoint (no auth required)
 	router.GET("/health", handler.HealthCheck)
+	router.GET("/live", func(c *gin.Context) { c.JSON(200, gin.H{"status": "alive", "version": "reliability-v18"}) })
 
 	// CLI install script alias (root level for easier access)
 	router.GET("/install.sh", handler.GetInstallScript)
@@ -74,10 +84,11 @@ func SetupRoutes(handler *Handler, authService *auth.AuthService) *gin.Engine {
 	{
 		// Authentication routes (no auth required)
 		auth := v1.Group("/auth")
+		auth.Use(func(c *gin.Context) { c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10); c.Next() })
 		{
 			auth.GET("/registration-status", handler.GetRegistrationStatus)
 			auth.POST("/register", handler.Register)
-			auth.POST("/login", handler.Login)
+			auth.POST("/login", loginLimiter(), handler.Login)
 			auth.POST("/refresh", handler.Refresh)
 			auth.POST("/logout", handler.Logout)
 
@@ -117,7 +128,7 @@ func SetupRoutes(handler *Handler, authService *auth.AuthService) *gin.Engine {
 
 		// Transcription routes (require authentication)
 		transcription := v1.Group("/transcription")
-		transcription.Use(middleware.AuthMiddleware(authService), handler.ResourceAccess())
+		transcription.Use(middleware.AuthMiddleware(authService), requestLimits(), handler.ResourceAccess())
 		{
 			// File upload routes - disable compression for these
 			uploadRoutes := transcription.Group("")
@@ -159,6 +170,7 @@ func SetupRoutes(handler *Handler, authService *auth.AuthService) *gin.Engine {
 			// Quick transcription endpoints
 			transcription.POST("/quick", handler.SubmitQuickTranscription)
 			transcription.GET("/quick/:id", handler.GetQuickTranscriptionStatus)
+			transcription.GET("/quick", handler.ListQuickTranscriptions)
 		}
 
 		// Private audio references require a user session, not a general integration key.
@@ -257,7 +269,7 @@ func SetupRoutes(handler *Handler, authService *auth.AuthService) *gin.Engine {
 
 		// Summarization route (require authentication)
 		summarize := v1.Group("/summarize")
-		summarize.Use(middleware.AuthMiddleware(authService))
+		summarize.Use(middleware.AuthMiddleware(authService), connectionLimit(1))
 		{
 			summarize.POST("/", handler.Summarize)
 		}
@@ -271,7 +283,7 @@ func SetupRoutes(handler *Handler, authService *auth.AuthService) *gin.Engine {
 
 		// SSE Events (require authentication)
 		events := v1.Group("/events")
-		events.Use(middleware.AuthMiddleware(authService), handler.ResourceAccess())
+		events.Use(middleware.AuthMiddleware(authService), connectionLimit(4), handler.ResourceAccess())
 		{
 			events.GET("/", handler.Events)
 		}

@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ interface LoginProps {
     onLogin: (token: string) => void;
 }
 export function Login({ onLogin }: LoginProps) {
+    useInterfaceLanguage();
     const navigate = useNavigate();
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");

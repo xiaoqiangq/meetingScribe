@@ -3,271 +3,264 @@ package transcription
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 	"io"
 	"os"
 	"path/filepath"
-	"sync"
-	"time"
-
 	"scriberr/internal/config"
+	"scriberr/internal/database"
 	"scriberr/internal/models"
 	"scriberr/internal/repository"
-
-	"github.com/google/uuid"
+	"scriberr/pkg/logger"
+	"strings"
+	"time"
 )
 
-// QuickTranscriptionJob represents a temporary transcription job
 type QuickTranscriptionJob struct {
 	OwnerID      uint                  `json:"-"`
 	ID           string                `json:"id"`
+	Filename     string                `json:"filename"`
 	Status       models.JobStatus      `json:"status"`
-	AudioPath    string                `json:"audio_path"`
 	Transcript   *string               `json:"transcript,omitempty"`
 	Parameters   models.WhisperXParams `json:"parameters"`
 	CreatedAt    time.Time             `json:"created_at"`
 	ExpiresAt    time.Time             `json:"expires_at"`
 	ErrorMessage *string               `json:"error_message,omitempty"`
 }
-
-// QuickTranscriptionService handles temporary transcriptions without database persistence
 type QuickTranscriptionService struct {
-	config           *config.Config
-	unifiedProcessor *UnifiedJobProcessor
-	jobRepo          repository.JobRepository
-	jobs             map[string]*QuickTranscriptionJob
-	jobsMutex        sync.RWMutex
-	tempDir          string
-	cleanupTicker    *time.Ticker
-	stopCleanup      chan bool
+	config  *config.Config
+	jobRepo repository.JobRepository
+	enqueue func(string) error
+	tempDir string
+	stop    chan struct{}
 }
 
-// NewQuickTranscriptionService creates a new quick transcription service
-func NewQuickTranscriptionService(cfg *config.Config, unifiedProcessor *UnifiedJobProcessor, jobRepo repository.JobRepository) (*QuickTranscriptionService, error) {
-	// Create temporary directory for quick transcriptions
-	tempDir := filepath.Join(cfg.UploadDir, "quick_transcriptions")
-	if err := os.MkdirAll(tempDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create temp directory: %v", err)
+func NewQuickTranscriptionService(cfg *config.Config, _ *UnifiedJobProcessor, repo repository.JobRepository) (*QuickTranscriptionService, error) {
+	dir := filepath.Join(cfg.UploadDir, "quick_transcriptions")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return nil, err
 	}
-
-	service := &QuickTranscriptionService{
-		config:           cfg,
-		unifiedProcessor: unifiedProcessor,
-		jobRepo:          jobRepo,
-		jobs:             make(map[string]*QuickTranscriptionJob),
-		tempDir:          tempDir,
-		stopCleanup:      make(chan bool),
-	}
-
-	// Start cleanup routine (run every hour)
-	service.startCleanupRoutine()
-
-	return service, nil
-}
-
-// SubmitQuickJob creates and processes a temporary transcription job
-func (qs *QuickTranscriptionService) SubmitQuickJob(audioData io.Reader, filename string, params models.WhisperXParams, owners ...uint) (*QuickTranscriptionJob, error) {
-	// Generate unique job ID
-	jobID := uuid.New().String()
-
-	// Create temporary file for audio
-	ext := filepath.Ext(filename)
-	audioFilename := fmt.Sprintf("%s%s", jobID, ext)
-	audioPath := filepath.Join(qs.tempDir, audioFilename)
-
-	// Save audio file
-	audioFile, err := os.Create(audioPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create audio file: %v", err)
-	}
-	defer audioFile.Close()
-
-	if _, err := io.Copy(audioFile, audioData); err != nil {
-		os.Remove(audioPath)
-		return nil, fmt.Errorf("failed to save audio file: %v", err)
-	}
-
-	// Create quick transcription job
-	now := time.Now()
-	job := &QuickTranscriptionJob{
-		ID:         jobID,
-		Status:     models.StatusPending,
-		AudioPath:  audioPath,
-		Parameters: params,
-		CreatedAt:  now,
-		ExpiresAt:  now.Add(6 * time.Hour),
-	}
-
-	if len(owners) > 0 {
-		job.OwnerID = owners[0]
-	}
-	// Store in memory
-	qs.jobsMutex.Lock()
-	qs.jobs[jobID] = job
-	qs.jobsMutex.Unlock()
-
-	// Start processing in background
-	go qs.processQuickJob(jobID)
-
-	snapshot := *job
-	return &snapshot, nil
-}
-
-// GetQuickJob retrieves a quick transcription job by ID
-func (qs *QuickTranscriptionService) GetQuickJob(jobID string) (*QuickTranscriptionJob, error) {
-	qs.jobsMutex.RLock()
-	defer qs.jobsMutex.RUnlock()
-
-	job, exists := qs.jobs[jobID]
-	if !exists {
-		return nil, fmt.Errorf("job not found")
-	}
-
-	// Check if expired
-	if time.Now().After(job.ExpiresAt) {
-		return nil, fmt.Errorf("job expired")
-	}
-
-	snapshot := *job
-	return &snapshot, nil
-}
-
-// processQuickJob processes a quick transcription job
-func (qs *QuickTranscriptionService) processQuickJob(jobID string) {
-	// Update job status to processing
-	qs.jobsMutex.Lock()
-	job, exists := qs.jobs[jobID]
-	if !exists {
-		qs.jobsMutex.Unlock()
-		return
-	}
-	job.Status = models.StatusProcessing
-	qs.jobsMutex.Unlock()
-
-	// Ensure Python environment and embedded assets are ready
-	if err := qs.unifiedProcessor.ensurePythonEnv(); err != nil {
-		qs.jobsMutex.Lock()
-		if job, exists := qs.jobs[jobID]; exists {
-			job.Status = models.StatusFailed
-			msg := fmt.Sprintf("env setup failed: %v", err)
-			job.ErrorMessage = &msg
-		}
-		qs.jobsMutex.Unlock()
-		return
-	}
-
-	// Create temporary transcription job for WhisperX processing
-	tempJob := models.TranscriptionJob{
-		ID:         jobID,
-		OwnerID:    job.OwnerID,
-		AudioPath:  job.AudioPath,
-		Parameters: job.Parameters,
-		Status:     models.StatusProcessing,
-	}
-
-	// Create a temporary database entry for unified processing
-	ctx := context.Background()
-
-	// Save temporary job to database for processing
-	if err := qs.jobRepo.Create(ctx, &tempJob); err != nil {
-		qs.jobsMutex.Lock()
-		if job, exists := qs.jobs[jobID]; exists {
-			job.Status = models.StatusFailed
-			errMsg := fmt.Sprintf("failed to create temp database entry: %v", err)
-			job.ErrorMessage = &errMsg
-		}
-		qs.jobsMutex.Unlock()
-		return
-	}
-
-	// Process with unified service
-	err := qs.unifiedProcessor.ProcessJob(ctx, jobID)
-
-	// Load the processed result back
-	if processedJob, loadErr := qs.jobRepo.FindByID(ctx, jobID); loadErr == nil {
-		// Copy result back to quick job if successful
-		if err == nil {
-			if processedJob.Transcript != nil {
-				// Save transcript to temp file for loadTranscriptFromTemp
-				transcriptPath := filepath.Join(qs.tempDir, jobID+"_transcript.json")
-				_ = os.WriteFile(transcriptPath, []byte(*processedJob.Transcript), 0644)
-			}
+	q := &QuickTranscriptionService{config: cfg, jobRepo: repo, tempDir: dir, stop: make(chan struct{})}
+	// Migrate identifiable legacy temporary rows without touching library recordings.
+	var old []models.TranscriptionJob
+	if database.DB != nil {
+		database.DB.Unscoped().Where("audio_path LIKE ? AND is_quick = ?", dir+string(os.PathSeparator)+"%", false).Find(&old)
+		for _, j := range old {
+			expires := j.CreatedAt.Add(6 * time.Hour)
+			database.DB.Unscoped().Model(&j).Updates(map[string]interface{}{"is_quick": true, "expires_at": expires})
 		}
 	}
-
-	// Clean up temporary database entry
-	_ = qs.jobRepo.Delete(ctx, jobID)
-
-	// Update job with results
-	qs.jobsMutex.Lock()
-	defer qs.jobsMutex.Unlock()
-
-	if job, exists := qs.jobs[jobID]; exists {
-		if err != nil {
-			job.Status = models.StatusFailed
-			errMsg := err.Error()
-			job.ErrorMessage = &errMsg
-		} else {
-			job.Status = models.StatusCompleted
-			// Load transcript from temporary file
-			if transcript, loadErr := qs.loadTranscriptFromTemp(jobID); loadErr == nil {
-				job.Transcript = &transcript
-			}
-		}
-	}
-}
-
-// processWithWhisperX processes the job using WhisperX service
-
-// loadTranscriptFromTemp loads transcript from temporary file
-func (qs *QuickTranscriptionService) loadTranscriptFromTemp(jobID string) (string, error) {
-	transcriptPath := filepath.Join(qs.tempDir, jobID+"_transcript.json")
-	data, err := os.ReadFile(transcriptPath)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
-}
-
-// startCleanupRoutine starts the background cleanup routine
-func (qs *QuickTranscriptionService) startCleanupRoutine() {
-	qs.cleanupTicker = time.NewTicker(1 * time.Hour)
 	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
 		for {
 			select {
-			case <-qs.cleanupTicker.C:
-				qs.cleanupExpiredJobs()
-			case <-qs.stopCleanup:
-				qs.cleanupTicker.Stop()
+			case <-ticker.C:
+				if err := q.cleanupOneFile(time.Now()); err != nil {
+					logger.Warn("Quick cleanup failed; will retry", "error", err)
+				}
+			case <-q.stop:
 				return
 			}
 		}
 	}()
+	return q, nil
+}
+func (q *QuickTranscriptionService) SetEnqueue(f func(string) error) { q.enqueue = f }
+func (q *QuickTranscriptionService) Close()                          { close(q.stop) }
+func (q *QuickTranscriptionService) SubmitQuickJob(data io.Reader, filename string, params models.WhisperXParams, owners ...uint) (*QuickTranscriptionJob, error) {
+	if q.enqueue == nil {
+		return nil, fmt.Errorf("transcription queue unavailable")
+	}
+	id := uuid.NewString()
+	path := filepath.Join(q.tempDir, id+filepath.Ext(filename))
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return nil, err
+	}
+	size, err := io.Copy(f, data)
+	closeErr := f.Close()
+	if err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		_ = os.Remove(path)
+		return nil, err
+	}
+	now := time.Now()
+	expiry := now.Add(6 * time.Hour)
+	title := filepath.Base(filename)
+	job := models.TranscriptionJob{ID: id, Title: &title, AudioPath: path, AudioBytes: size, IsQuick: true, ExpiresAt: &expiry, Status: models.StatusPending, Parameters: params}
+	if len(owners) > 0 {
+		job.OwnerID = owners[0]
+	}
+	if err = q.jobRepo.Create(context.Background(), &job); err != nil {
+		_ = os.Remove(path)
+		return nil, err
+	}
+	if err = q.enqueue(id); err != nil {
+		_ = q.jobRepo.UpdateStatus(context.Background(), id, models.StatusFailed)
+		_ = q.jobRepo.UpdateError(context.Background(), id, err.Error())
+		return nil, err
+	}
+	return quickView(&job), nil
+}
+func quickView(j *models.TranscriptionJob) *QuickTranscriptionJob {
+	v := &QuickTranscriptionJob{OwnerID: j.OwnerID, ID: j.ID, Status: j.Status, Transcript: j.Transcript, Parameters: j.Parameters, CreatedAt: j.CreatedAt, ErrorMessage: j.ErrorMessage}
+	if j.Title != nil {
+		v.Filename = *j.Title
+	}
+	if j.ExpiresAt != nil {
+		v.ExpiresAt = *j.ExpiresAt
+	}
+	return v
+}
+func (q *QuickTranscriptionService) GetQuickJob(id string) (*QuickTranscriptionJob, error) {
+	j, err := q.jobRepo.FindByID(context.Background(), id)
+	if err != nil || !j.IsQuick {
+		return nil, fmt.Errorf("job not found")
+	}
+	if j.ExpiresAt == nil || !time.Now().Before(*j.ExpiresAt) {
+		return nil, fmt.Errorf("job expired")
+	}
+	return quickView(j), nil
+}
+func (q *QuickTranscriptionService) ListQuickJobs(owner uint) ([]*QuickTranscriptionJob, error) {
+	var jobs []models.TranscriptionJob
+	err := database.DB.Where("owner_id = ? AND is_quick = ? AND expires_at > ?", owner, true, time.Now()).Order("created_at DESC").Limit(30).Find(&jobs).Error
+	result := make([]*QuickTranscriptionJob, 0, len(jobs))
+	for i := range jobs {
+		result = append(result, quickView(&jobs[i]))
+	}
+	return result, err
 }
 
-// cleanupExpiredJobs removes expired jobs and their files
-func (qs *QuickTranscriptionService) cleanupExpiredJobs() {
-	qs.jobsMutex.Lock()
-	defer qs.jobsMutex.Unlock()
+// One explicit regular file per invocation. Never remove directories or follow symlinks.
+func (q *QuickTranscriptionService) cleanupRoots(id string) []string {
+	roots := []string{filepath.Join(q.config.TranscriptsDir, id), filepath.Join(q.tempDir, id+"_output")}
+	// Older adapters retained scratch outside their actual output directory.
+	for _, model := range []string{"whisperx", "sortformer", "sortformer_4spk", "pyannote", "parakeet", "canary", "funasr"} {
+		roots = append(roots, filepath.Join(filepath.Dir(q.config.TranscriptsDir), "temp", model, id))
+	}
+	return roots
+}
 
-	now := time.Now()
-	for jobID, job := range qs.jobs {
-		if now.After(job.ExpiresAt) {
-			// Remove files
-			os.Remove(job.AudioPath)
-			os.Remove(filepath.Join(qs.tempDir, jobID+"_transcript.json"))
-			os.RemoveAll(filepath.Join(qs.tempDir, jobID+"_output"))
-
-			// Remove from memory
-			delete(qs.jobs, jobID)
-
-			fmt.Printf("DEBUG: Cleaned up expired quick transcription job: %s\n", jobID)
+func (q *QuickTranscriptionService) cleanupOneFile(now time.Time) error {
+	if database.DB == nil {
+		return nil
+	}
+	var j models.TranscriptionJob
+	result := database.DB.Unscoped().Where("is_quick = ? AND expires_at <= ? AND quick_cleaned_at IS NULL AND status NOT IN ?", true, now, []models.JobStatus{models.StatusPending, models.StatusProcessing}).Order("expires_at ASC").Limit(1).Find(&j)
+	err := result.Error
+	if err == nil && result.RowsAffected == 0 {
+		return nil
+	}
+	if err == gorm.ErrRecordNotFound {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	paths := j.QuickCleanupFiles
+	if len(paths) == 0 {
+		if j.AudioPath != "" {
+			paths = append(paths, j.AudioPath)
+			converted := strings.TrimSuffix(j.AudioPath, filepath.Ext(j.AudioPath)) + "_converted.wav"
+			if info, err := os.Lstat(converted); err == nil && info.Mode().IsRegular() {
+				paths = append(paths, converted)
+			}
+		}
+		for _, dir := range q.cleanupRoots(j.ID) {
+			walkErr := filepath.WalkDir(dir, func(p string, d os.DirEntry, e error) error {
+				if os.IsNotExist(e) {
+					return nil
+				}
+				if e != nil {
+					return e
+				}
+				if d.Type().IsRegular() {
+					paths = append(paths, p)
+				}
+				return nil
+			})
+			if walkErr != nil {
+				return walkErr
+			}
+		}
+		j.QuickCleanupFiles = paths
+		if err := database.DB.Unscoped().Save(&j).Error; err != nil {
+			return err
 		}
 	}
-}
-
-// Close stops the cleanup routine
-func (qs *QuickTranscriptionService) Close() {
-	if qs.cleanupTicker != nil {
-		close(qs.stopCleanup)
+	if len(paths) > 0 {
+		path := paths[0]
+		if err := q.removeKnownFile(j.ID, path); err != nil {
+			return err
+		}
+		j.QuickCleanupFiles = paths[1:]
+		// Empty the primary path after its explicit file has been removed.
+		if path == j.AudioPath {
+			j.AudioPath = ""
+			j.AudioBytes = 0
+		}
+		if len(j.QuickCleanupFiles) > 0 {
+			return database.DB.Unscoped().Save(&j).Error
+		}
 	}
+	// Content expires too; keep only a minimal cleanup audit record.
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("transcription_job_id = ?", j.ID).Delete(&models.TranscriptionJobExecution{}).Error; err != nil {
+			return err
+		}
+		return tx.Unscoped().Model(&j).Updates(map[string]interface{}{"transcript": nil, "audio_path": "", "audio_bytes": 0, "quick_cleanup_files": "[]", "quick_cleaned_at": now}).Error
+	})
+}
+func (q *QuickTranscriptionService) removeKnownFile(id, path string) error {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	allowed := q.cleanupRoots(id)
+	tempRoot, _ := filepath.Abs(q.tempDir)
+	if filepath.Dir(abs) == tempRoot && (strings.TrimSuffix(filepath.Base(abs), filepath.Ext(abs)) == id || filepath.Base(abs) == id+"_converted.wav") {
+		allowed = append(allowed, tempRoot)
+	}
+	expected := ""
+	for _, root := range allowed {
+		r, _ := filepath.Abs(root)
+		rel, e := filepath.Rel(r, abs)
+		if e == nil && rel != "." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) && rel != ".." {
+			realRoot, e := filepath.EvalSymlinks(r)
+			if os.IsNotExist(e) {
+				return nil
+			}
+			if e != nil {
+				return e
+			}
+			expected = filepath.Join(realRoot, rel)
+			break
+		}
+	}
+	if expected == "" {
+		return fmt.Errorf("cleanup path outside task storage")
+	}
+	info, err := os.Lstat(abs)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("cleanup only supports ordinary files")
+	}
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return err
+	}
+	if real != expected {
+		return fmt.Errorf("cleanup refuses symlink ancestors")
+	}
+	return os.Remove(abs)
 }

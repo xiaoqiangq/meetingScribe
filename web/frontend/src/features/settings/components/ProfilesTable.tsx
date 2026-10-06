@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useEffect, useCallback } from "react";
 import { MoreVertical, Trash2, Settings, Terminal } from "lucide-react";
@@ -22,6 +23,7 @@ interface ProfilesTableProps {
     onCreateProfile?: () => void;
 }
 export function ProfilesTable({ refreshTrigger, onProfileChange, onEditProfile, onCreateProfile, }: ProfilesTableProps) {
+    useInterfaceLanguage();
     const { getAuthHeaders } = useAuth();
     const [profiles, setProfiles] = useState<TranscriptionProfile[]>([]);
     const [loading, setLoading] = useState(true);

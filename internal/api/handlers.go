@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"scriberr/internal/database"
 	"strconv"
 	"strings"
 	"time"
@@ -795,7 +797,9 @@ func (h *Handler) SubmitJob(c *gin.Context) {
 
 	// Enqueue job
 	if err := h.taskQueue.EnqueueJob(jobID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to enqueue job"})
+		_ = h.jobRepo.UpdateStatus(context.Background(), jobID, models.StatusFailed)
+		_ = h.jobRepo.UpdateError(context.Background(), jobID, err.Error())
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -1050,7 +1054,9 @@ func (h *Handler) StartTranscription(c *gin.Context) {
 	// Enqueue job for transcription
 	if err := h.taskQueue.EnqueueJob(jobID); err != nil {
 		logger.Error("Failed to enqueue job", "job_id", jobID, "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to enqueue job"})
+		_ = h.jobRepo.UpdateStatus(context.Background(), jobID, models.StatusFailed)
+		_ = h.jobRepo.UpdateError(context.Background(), jobID, err.Error())
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -2359,10 +2365,69 @@ func (h *Handler) GetSupportedModels(c *gin.Context) {
 // @Success 200 {object} map[string]string
 // @Router /health [get]
 func (h *Handler) HealthCheck(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "healthy",
-		"version": "1.0.0",
-	})
+	checks := map[string]bool{"database": false, "storage": true}
+	if database.DB != nil {
+		sqlDB, err := database.DB.DB()
+		if err == nil {
+			ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+			checks["database"] = sqlDB.PingContext(ctx) == nil
+			cancel()
+		}
+	}
+	for _, dir := range []string{h.config.UploadDir, h.config.TranscriptsDir} {
+		info, err := os.Stat(dir)
+		if err != nil || !info.IsDir() {
+			checks["storage"] = false
+		}
+	}
+	checks["models"] = false
+	if h.unifiedProcessor != nil {
+		profile, err := h.profileRepo.FindDefault(c.Request.Context())
+		if err == nil && profile != nil {
+			statuses := h.unifiedProcessor.GetModelStatus(c.Request.Context())
+			key := profile.Parameters.ModelFamily
+			switch key {
+			case "whisper":
+				key = "whisperx"
+			case "nvidia_parakeet":
+				key = "parakeet"
+			case "nvidia_canary":
+				key = "canary"
+			case "openai":
+				key = "openai_whisper"
+			}
+			checks["models"] = statuses[key]
+			if profile.Parameters.Diarize {
+				diar := profile.Parameters.DiarizeModel
+				switch diar {
+				case "nvidia_sortformer":
+					diar = "sortformer"
+				case "nvidia_sortformer_4spk":
+					diar = "sortformer_4spk"
+				case "pyannote/speaker-diarization-3.1":
+					diar = "pyannote"
+				case "funasr_campp":
+					diar = "funasr"
+				}
+				checks["models"] = checks["models"] && statuses[diar]
+			}
+			if profile.Parameters.Model == "Qwen/Qwen3-ASR-1.7B" {
+				for _, relative := range []string{"qwen3-asr-env/bin/python", "funasr-runtime/qwen3_transcribe.py", "qwen3-models/Qwen3-ASR-1.7B/config.json", "qwen3-models/Qwen3-ForcedAligner-0.6B/config.json"} {
+					if _, err := os.Stat(filepath.Join(h.config.WhisperXEnv, relative)); err != nil {
+						checks["models"] = false
+					}
+				}
+			}
+		}
+	}
+	healthy := checks["database"] && checks["storage"] && checks["models"]
+	code := 200
+	status := "ready"
+	if !healthy {
+		code = 503
+		status = "not_ready"
+	}
+	c.JSON(code, gin.H{"status": status, "version": "reliability-v18", "checks": checks})
 }
 
 // Helper functions
@@ -2636,92 +2701,44 @@ func (h *Handler) SubmitQuickTranscription(c *gin.Context) {
 	defer file.Close()
 
 	var params models.WhisperXParams
-
-	// Check if profile_name was provided
-	if profileName := c.PostForm("profile_name"); profileName != "" {
-		// Load parameters from profile
-		profile, err := h.profileRepo.FindByName(c.Request.Context(), profileName)
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Profile '%s' not found", profileName)})
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load profile"})
-			return
-		}
-		params = profile.Parameters
-
-	} else if c.GetString("role") != "admin" || c.GetString("auth_type") != "jwt" {
-		c.JSON(403, gin.H{"error": "请选择管理员提供的转写配置"})
-		return
-	} else if parametersJSON := c.PostForm("parameters"); parametersJSON != "" {
-		// Parse parameters from JSON string
-		if err := json.Unmarshal([]byte(parametersJSON), &params); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parameters JSON"})
-			return
-		}
+	profileName := c.PostForm("profile_name")
+	var profile *models.TranscriptionProfile
+	if profileName != "" {
+		profile, err = h.profileRepo.FindByName(c.Request.Context(), profileName)
 	} else {
-		// Use default parameters with all required fields
-		params = models.WhisperXParams{
-			// Model parameters
-			Model:          "small",
-			ModelCacheOnly: false,
-
-			// Device and computation
-			Device:      "cpu",
-			DeviceIndex: 0,
-			BatchSize:   8,
-			ComputeType: "float32",
-			Threads:     0,
-
-			// Output settings
-			OutputFormat: "all",
-			Verbose:      true,
-
-			// Task and language
-			Task: "transcribe",
-
-			// Alignment settings
-			InterpolateMethod:    "nearest",
-			NoAlign:              false,
-			ReturnCharAlignments: false,
-
-			// VAD (Voice Activity Detection) settings
-			VadMethod: "pyannote",
-			VadOnset:  0.5,
-			VadOffset: 0.363,
-			ChunkSize: 30,
-
-			// Diarization settings
-			Diarize:           false,
-			DiarizeModel:      "pyannote/speaker-diarization-3.1",
-			SpeakerEmbeddings: false,
-
-			// Transcription quality settings
-			Temperature:                    0,
-			BestOf:                         5,
-			BeamSize:                       5,
-			Patience:                       1.0,
-			LengthPenalty:                  1.0,
-			SuppressNumerals:               false,
-			ConditionOnPreviousText:        false,
-			Fp16:                           true,
-			TemperatureIncrementOnFallback: 0.2,
-			CompressionRatioThreshold:      2.4,
-			LogprobThreshold:               -1.0,
-			NoSpeechThreshold:              0.6,
-
-			// Output formatting
-			HighlightWords:    false,
-			SegmentResolution: "sentence",
-			PrintProgress:     false,
-		}
+		profile, err = h.profileRepo.FindDefault(c.Request.Context())
 	}
+	if err != nil || profile == nil {
+		c.JSON(400, gin.H{"error": "Select an available transcription profile"})
+		return
+	}
+	params = profile.Parameters
+	// Only the language can override administrator-provided settings.
+	if language := c.PostForm("language"); language != "" {
+		if params.Model != "Qwen/Qwen3-ASR-1.7B" {
+			c.JSON(400, gin.H{"error": "Language override requires Qwen"})
+			return
+		}
+		switch language {
+		case "auto", "zh", "en", "yue", "fr", "de", "it", "ja", "ko", "pt", "ru", "es":
+		default:
+			c.JSON(400, gin.H{"error": "Unsupported audio language"})
+			return
+		}
+		params.Language = &language
+	}
+	// Temporary transcription processes the full file; topic boundaries belong to library jobs.
+	params.TopicMode = false
+	params.TopicBoundaries = nil
 
 	// Submit quick transcription job
 	job, err := h.quickTranscription.SubmitQuickJob(file, header.Filename, params, c.GetUint("user_id"))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to submit quick transcription: %v", err)})
+		code := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "too many active") || strings.Contains(err.Error(), "queue is full") {
+			code = http.StatusTooManyRequests
+		}
+		c.JSON(code, gin.H{"error": fmt.Sprintf("Failed to submit quick transcription: %v", err)})
 		return
 	}
 
@@ -2808,7 +2825,9 @@ func (h *Handler) DownloadFromYouTube(c *gin.Context) {
 	} else {
 		// Get title first using standalone yt-dlp
 		titleStart := time.Now()
-		cmd := exec.Command("yt-dlp", "--get-title", req.URL)
+		titleCtx, cancelTitle := context.WithTimeout(c.Request.Context(), 30*time.Second)
+		defer cancelTitle()
+		cmd := exec.CommandContext(titleCtx, "yt-dlp", "--get-title", "--socket-timeout", "15", req.URL)
 		var out bytes.Buffer
 		cmd.Stdout = &out
 		err := cmd.Run()
@@ -2826,7 +2845,16 @@ func (h *Handler) DownloadFromYouTube(c *gin.Context) {
 	downloadStart := time.Now()
 
 	// Executing yt-dlp directly (standalone binary)
-	ytDlpCmd := exec.Command("yt-dlp",
+	downloadCtx, cancelDownload := context.WithTimeout(c.Request.Context(), 30*time.Minute)
+	defer cancelDownload()
+	limit, _ := c.Get("upload_max_bytes")
+	maximum, _ := limit.(int64)
+	if maximum <= 0 {
+		maximum = envBytes("MAX_UPLOAD_BYTES", 1<<30)
+	}
+	ytDlpCmd := exec.CommandContext(downloadCtx, "yt-dlp",
+		"--max-filesize", strconv.FormatInt(maximum, 10),
+		"--socket-timeout", "30",
 		"--extract-audio",
 		"--audio-format", "mp3",
 		"--audio-quality", "0", // best quality
@@ -2865,8 +2893,16 @@ func (h *Handler) DownloadFromYouTube(c *gin.Context) {
 
 	actualFilePath := matches[0]
 
-	// Get file size for performance logging
+	// Check the converted audio against the account's remaining capacity too.
 	fileInfo, err := os.Stat(actualFilePath)
+	if err != nil || fileInfo.Size() > maximum {
+		if err == nil {
+			_ = os.Remove(actualFilePath)
+		}
+		c.JSON(413, gin.H{"error": "Downloaded audio exceeds the upload or account storage limit"})
+		return
+	}
+	// Get file size for performance logging
 	if err == nil {
 		fileSizeMB := float64(fileInfo.Size()) / 1024 / 1024
 		logger.Info("YouTube download completed",
@@ -3124,4 +3160,16 @@ func (h *Handler) UpdateUserSettings(c *gin.Context) {
 // @Router /api/v1/events [get]
 func (h *Handler) Events(c *gin.Context) {
 	h.broadcaster.ServeHTTP(c.Writer, c.Request)
+}
+
+func (h *Handler) ListQuickTranscriptions(c *gin.Context) {
+	jobs, err := h.quickTranscription.ListQuickJobs(c.GetUint("user_id"))
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to load temporary jobs"})
+		return
+	}
+	for _, job := range jobs {
+		job.Parameters = publicParams(job.Parameters)
+	}
+	c.JSON(200, jobs)
 }

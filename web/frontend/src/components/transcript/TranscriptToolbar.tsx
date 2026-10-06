@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import React from 'react';
 import { List, AlignLeft, ArrowDownCircle, StickyNote, Info, FileText, Users, Sparkles, Download, FileImage, FileJson, MessageCircle } from 'lucide-react';
@@ -26,6 +27,7 @@ interface TranscriptToolbarProps {
     className?: string;
 }
 export const TranscriptToolbar: React.FC<TranscriptToolbarProps> = ({ transcriptMode, setTranscriptMode, autoScrollEnabled, setAutoScrollEnabled, notesOpen, setNotesOpen, notes, onOpenExecutionInfo, onOpenLogs, hasSpeakers, detectedSpeakersCount, onOpenSpeakerRename, onOpenSummarize, llmReady, onDownloadSRT, onDownloadTXT, onDownloadJSON, onOpenChat, className }) => {
+    useInterfaceLanguage();
     return (<div className={cn("flex items-center gap-1 p-1.5 rounded-2xl border shadow-sm backdrop-blur-md transition-all duration-300", "bg-white/80 dark:bg-carbon-900/80 border-carbon-200 dark:border-carbon-800", "supports-[backdrop-filter]:bg-white/60 supports-[backdrop-filter]:dark:bg-carbon-900/60", className)}>
             {/* View Mode Toggle */}
             <ToolbarButton active={transcriptMode === 'compact'} onClick={() => setTranscriptMode(transcriptMode === 'compact' ? 'expanded' : 'compact')} title={transcriptMode === 'compact' ? 'Switch to Timeline View' : 'Switch to Compact View'}>

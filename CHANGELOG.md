@@ -2,7 +2,19 @@
 
 [简体中文](CHANGELOG.zh-CN.md)
 
-## Unreleased
+## v0.1.0-rc.2 — 2026-10-06
+
+- Synchronize the GPU1 v18 website, waveform logo and Huiji P branding.
+- Switch English / Chinese without reloading; recover temporary tasks and choose their audio language.
+- Persist six-hour expiry and exact cleanup paths; deny expired content and resume individual-file cleanup after restart.
+- Queue temporary and ordinary transcription together with per-owner admission limits.
+- Preserve failed / partial minutes separately; require explicit successful stream completion.
+- Disable raw HTML in minutes; render Markdown tables and improve speaker / paragraph readability.
+- Add upload size, storage quota, login rate, connection and timeout protections.
+- Add readiness / liveness endpoints, optional model provisioning, restart and verified backup templates.
+- Existing GPU deployment validated; fresh GPU installation and full upgrade / rollback acceptance remain pending. Pre-release.
+
+## v0.1.0-rc.1
 
 ### Added
 

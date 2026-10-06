@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useEffect } from "react";
 import { ChatSessionsSidebar } from "@/components/ChatSessionsSidebar";
@@ -12,6 +13,7 @@ interface ChatSidePanelProps {
     isMobile: boolean;
 }
 export function ChatSidePanel({ transcriptionId, isOpen, onClose, isMobile }: ChatSidePanelProps) {
+    useInterfaceLanguage();
     // view state: 'list' (sessions) or 'chat' (active session)
     const [view, setView] = useState<'list' | 'chat'>('list');
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);

@@ -92,6 +92,10 @@ func (n *NemotronAdapter) Diarize(ctx context.Context, input interfaces.AudioInp
 		filepath.Join(n.envPath, "nemotron3_diarize.py"), audio.FilePath,
 		filepath.Join(tempDir, "result.json"), "--batch-size", strconv.Itoa(batch), "--device", device)
 	cmd.Env = append(os.Environ(), "PYTHONUNBUFFERED=1", "HF_HUB_OFFLINE=1", "HF_DATASETS_OFFLINE=1")
+	if scratch := procCtx.Metadata["quick_scratch"]; scratch != "" {
+		cmd.Env = append(cmd.Env, "TMPDIR="+scratch, "TEMP="+scratch, "TMP="+scratch)
+	}
+
 	log, err := os.OpenFile(filepath.Join(procCtx.OutputDirectory, "transcription.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, err

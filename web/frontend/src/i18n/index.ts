@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react';
 import messages from './messages.json';
 import englishChinese from './english-zh.json';
 export type InterfaceLanguage = 'en' | 'zh';
@@ -16,3 +17,15 @@ export function t(message: string): string {
 export function getLocale(): string { return getInterfaceLanguage() === 'zh' ? 'zh-CN' : 'en-US'; }
 if (typeof document !== 'undefined') document.documentElement.lang = getInterfaceLanguage() === 'zh' ? 'zh-CN' : 'en';
 if (typeof document !== 'undefined') document.title = getInterfaceLanguage() === 'zh' ? '会记P' : 'Huiji P';
+
+const subscribers = new Set<() => void>();
+export function useInterfaceLanguage() {
+    return useSyncExternalStore(listener => {subscribers.add(listener);return () => {subscribers.delete(listener);};}, getInterfaceLanguage, () => 'en');
+}
+export function setInterfaceLanguage(language: InterfaceLanguage) {
+    localStorage.setItem('huiji-interface-language', language);
+    document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
+    document.title = language === 'zh' ? '会记P' : 'Huiji P';
+    subscribers.forEach(listener => listener());
+}
+window.addEventListener('storage', event => {if(event.key === 'huiji-interface-language') subscribers.forEach(listener => listener());});

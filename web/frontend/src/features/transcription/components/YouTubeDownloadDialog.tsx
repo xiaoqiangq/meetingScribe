@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import React, { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
@@ -12,6 +13,7 @@ interface YouTubeDownloadDialogProps {
     onDownloadComplete?: () => void;
 }
 export function YouTubeDownloadDialog({ isOpen, onClose, onDownloadComplete }: YouTubeDownloadDialogProps) {
+    useInterfaceLanguage();
     const { mutateAsync: downloadYouTube, isPending: isDownloading } = useYouTubeDownload();
     const [url, setUrl] = useState("");
     const [title, setTitle] = useState("");

@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import React, { useState, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
@@ -9,8 +10,9 @@ import { useTranscriptionProfiles, useQuickTranscription } from "@/features/tran
 import type { Profile } from "@/features/transcription/hooks/useAudioFiles";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 interface QuickTranscriptionJob {
+    filename?: string;
     id: string;
-    status: "processing" | "completed" | "failed";
+    status: "pending" | "processing" | "completed" | "failed";
     transcript?: string;
     error_message?: string;
     created_at: string;
@@ -36,6 +38,7 @@ interface QuickTranscriptionDialogProps {
     onClose: () => void;
 }
 export function QuickTranscriptionDialog({ isOpen, onClose }: QuickTranscriptionDialogProps) {
+    useInterfaceLanguage();
     const { getAuthHeaders } = useAuth();
     const { data: profiles = [] } = useTranscriptionProfiles();
     const { mutateAsync: submitQuickTranscription } = useQuickTranscription();
@@ -43,13 +46,15 @@ export function QuickTranscriptionDialog({ isOpen, onClose }: QuickTranscription
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [selectedProfile, setSelectedProfile] = useState<string>("");
     const [job, setJob] = useState<QuickTranscriptionJob | null>(null);
+    const [language, setLanguage] = useState("auto");
+    const [recentJobs, setRecentJobs] = useState<QuickTranscriptionJob[]>([]);
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
     // Set default profile when profiles load
     useEffect(() => {
         if (profiles.length > 0 && !selectedProfile) {
-            const defaultProfile = profiles.find((p: Profile) => p.is_default);
+            const defaultProfile = profiles.find((p: Profile) => p.is_default) || profiles[0];
             if (defaultProfile) {
                 setSelectedProfile(defaultProfile.name);
             }
@@ -81,9 +86,11 @@ export function QuickTranscriptionDialog({ isOpen, onClose }: QuickTranscription
         try {
             const jobData = await submitQuickTranscription({
                 file: selectedFile,
-                profileName: selectedProfile || undefined
+                profileName: selectedProfile || undefined,
+                language: profiles.find(p => p.name === selectedProfile)?.parameters?.model === "Qwen/Qwen3-ASR-1.7B" ? language : undefined
             });
             setJob(jobData);
+            setRecentJobs(items => [jobData, ...items.filter(j=>j.id !== jobData.id)]);
             startPolling(jobData.id);
         }
         catch (err) {
@@ -92,11 +99,17 @@ export function QuickTranscriptionDialog({ isOpen, onClose }: QuickTranscription
         }
     };
     const startPolling = (jobId: string) => {
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = setInterval(async () => {
             try {
                 const response = await fetch(`/api/v1/transcription/quick/${jobId}`, {
                     headers: getAuthHeaders(),
                 });
+                if (response.status === 404) {
+                    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                    setJob(null); setStep("upload"); setError(translateUI("Temporary task expired or is unavailable."));
+                    return;
+                }
                 if (response.ok) {
                     const jobData = await response.json();
                     setJob(jobData);
@@ -119,12 +132,28 @@ export function QuickTranscriptionDialog({ isOpen, onClose }: QuickTranscription
             clearInterval(pollIntervalRef.current);
             pollIntervalRef.current = null;
         }
-        setStep("upload");
-        setSelectedFile(null);
-        setSelectedProfile("");
-        setJob(null);
-        setError(null);
         onClose();
+    };
+    useEffect(() => {
+        if (!isOpen) return;
+        let stopped = false;
+        fetch('/api/v1/transcription/quick', {headers:getAuthHeaders()})
+            .then(r => {if (!r.ok) throw new Error('Failed to load temporary tasks'); return r.json();})
+            .then((items: QuickTranscriptionJob[]) => {
+                if (stopped) return;
+                setRecentJobs(items);
+                if (job) {
+                    const recovered = items.find(item => item.id === job.id);
+                    if (recovered) resume(recovered); else {setJob(null); setStep('upload');}
+                }
+            }).catch(e => {if (!stopped) setError(e.message);});
+        return () => { stopped = true; if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); };
+    }, [isOpen]);
+    const resume = (item: QuickTranscriptionJob) => {
+        setJob(item); setError(null);
+        const active = item.status === 'pending' || item.status === 'processing';
+        setStep(active ? 'processing' : 'result');
+        if (active) startPolling(item.id);
     };
     const formatTime = (seconds: number): string => {
         const mins = Math.floor(seconds / 60);
@@ -160,18 +189,25 @@ export function QuickTranscriptionDialog({ isOpen, onClose }: QuickTranscription
         if (!job?.expires_at)
             return "";
         const expiryTime = new Date(job.expires_at);
-        const now = new Date();
-        const hoursRemaining = Math.ceil((expiryTime.getTime() - now.getTime()) / (1000 * 60 * 60));
-        return `Expires in ${hoursRemaining} hours`;
+        return translateUI("Expires at") + ": " + expiryTime.toLocaleString();
     };
     return (<Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-[var(--warning-solid)]"/>{translateUI("Quick Transcription")}</DialogTitle>
-          <DialogDescription>{translateUI("Fast transcription without saving to your library - files auto-delete after 6 hours")}</DialogDescription>
+          <DialogDescription>{translateUI("Temporary content expires after 6 hours; files are removed in the background.")}</DialogDescription>
         </DialogHeader>
 
+        {recentJobs.length > 0 && <div className="space-y-2">
+          <label className="text-sm">{translateUI("Temporary tasks (available for 6 hours)")}</label>
+          <select aria-label={translateUI("Temporary tasks")} className="w-full border rounded p-2 bg-[var(--bg-card)]" value={job?.id || ''} onChange={e => {const item=recentJobs.find(j=>j.id===e.target.value); if(item)resume(item);}}>
+            <option value="">{translateUI("Choose a temporary task")}</option>
+            {recentJobs.map(item=><option key={item.id} value={item.id}>{item.filename || item.id.slice(0,8)} · {translateUI(item.id === job?.id ? job.status : item.status)}</option>)}
+          </select>
+          <Button variant="outline" onClick={() => {setJob(null);setSelectedFile(null);setStep('upload');setError(null);}}>{translateUI("New transcription")}</Button>
+        </div>}
+        {error && <p role="alert" className="text-sm text-[var(--error)]">{error}</p>}
         {step === "upload" && (<div className="space-y-4">
             <Card className="border-2 border-dashed border-[var(--border-subtle)] hover:border-[var(--warning-solid)] cursor-pointer transition-colors bg-[var(--bg-card)]" onClick={handleFileSelect}>
               <CardContent className="flex flex-col items-center justify-center py-12">
@@ -215,6 +251,12 @@ export function QuickTranscriptionDialog({ isOpen, onClose }: QuickTranscription
               <p className="text-xs text-[var(--text-tertiary)]">{translateUI("Leave empty to use default settings")}</p>
             </div>
 
+            {profiles.find(p => p.name === selectedProfile)?.parameters?.model === 'Qwen/Qwen3-ASR-1.7B' && <div className="space-y-2">
+              <label className="text-sm">{translateUI("Audio language")}</label>
+              <select aria-label={translateUI("Audio language")} className="w-full rounded border p-2 bg-[var(--bg-card)]" value={language} onChange={e=>setLanguage(e.target.value)}>
+                {Object.entries({auto:'Auto-detect',zh:'Chinese',en:'English',yue:'Cantonese',fr:'French',de:'German',it:'Italian',ja:'Japanese',ko:'Korean',pt:'Portuguese',ru:'Russian',es:'Spanish'}).map(([code,label])=><option key={code} value={code}>{translateUI(label)}</option>)}
+              </select>
+            </div>}
             {error && (<div className="p-3 bg-[var(--error)]/10 border border-[var(--error)]/20 rounded-[var(--radius-input)]">
                 <p className="text-sm text-[var(--error)]">{error}</p>
               </div>)}
@@ -228,7 +270,7 @@ export function QuickTranscriptionDialog({ isOpen, onClose }: QuickTranscription
         {step === "processing" && job && (<div className="space-y-4 text-center">
             <div className="flex flex-col items-center">
               <Clock className="h-12 w-12 text-[var(--warning-solid)] animate-spin mb-4"/>
-              <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">{translateUI("Transcribing Audio...")}</h3>
+              <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">{translateUI(job.status === "pending" ? "Waiting in queue..." : "Transcribing Audio...")}</h3>
               <p className="text-[var(--text-secondary)]">{translateUI("This may take a few minutes depending on the audio length")}</p>
               <p className="text-xs text-[var(--text-tertiary)] mt-2">
                 {getExpiryInfo()}
@@ -238,7 +280,7 @@ export function QuickTranscriptionDialog({ isOpen, onClose }: QuickTranscription
             <div className="text-left bg-[var(--bg-card)] p-4 rounded-[var(--radius-card)] border border-[var(--border-subtle)]">
               <h4 className="font-medium mb-2 text-[var(--text-primary)]">{translateUI("Job Details:")}</h4>
               <p className="text-sm text-[var(--text-secondary)]">ID: {job.id}</p>
-              <p className="text-sm text-[var(--text-secondary)]">{translateUI("Status:")}{job.status}</p>
+              <p className="text-sm text-[var(--text-secondary)]">{translateUI("Status:")}{translateUI(job.status)}</p>
             </div>
 
             <Button variant="outline" onClick={handleClose}>{translateUI("Cancel")}</Button>

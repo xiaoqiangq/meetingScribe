@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -5,6 +6,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 export function CLIAuthConfirmation() {
+    useInterfaceLanguage();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { getAuthHeaders } = useAuth();

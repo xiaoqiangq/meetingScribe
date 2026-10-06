@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -34,6 +33,8 @@ type TaskQueue struct {
 	wg             sync.WaitGroup
 	processor      JobProcessor
 	runningJobs    map[string]*RunningJob
+	admitted       map[string]bool
+	admissionMutex sync.Mutex
 	jobsMutex      sync.RWMutex
 	autoScale      bool
 	lastScaleTime  time.Time
@@ -55,7 +56,6 @@ type MultiTrackJobProcessor interface {
 
 // getOptimalWorkerCount calculates optimal worker count based on system resources
 func getOptimalWorkerCount() (min, max int) {
-	numCPU := runtime.NumCPU()
 
 	// Check for environment variable override
 	if workerStr := os.Getenv("QUEUE_WORKERS"); workerStr != "" {
@@ -64,18 +64,7 @@ func getOptimalWorkerCount() (min, max int) {
 		}
 	}
 
-	// For transcription workloads, we typically want fewer workers than CPUs
-	// since each job is CPU and I/O intensive
-	if numCPU <= 2 {
-		return 1, 2
-	}
-	if numCPU <= 4 {
-		return 1, 3
-	}
-	if numCPU <= 8 {
-		return 2, 4
-	}
-	return 2, 6 // Cap at 6 for very high CPU systems
+	return 1, 1
 }
 
 // NewTaskQueue creates a new task queue with auto-scaling capabilities
@@ -104,6 +93,7 @@ func NewTaskQueue(legacyWorkers int, processor JobProcessor, jobRepo repository.
 		cancel:         cancel,
 		processor:      processor,
 		runningJobs:    make(map[string]*RunningJob),
+		admitted:       make(map[string]bool),
 		autoScale:      autoScale,
 		lastScaleTime:  time.Now(),
 		jobRepo:        jobRepo,
@@ -152,6 +142,32 @@ func (tq *TaskQueue) Stop() {
 
 // EnqueueJob adds a job to the queue
 func (tq *TaskQueue) EnqueueJob(jobID string) error {
+	tq.admissionMutex.Lock()
+	defer tq.admissionMutex.Unlock()
+	if tq.admitted[jobID] {
+		return nil
+	}
+
+	// Per-owner admission covers library and quick jobs. The submitted row is included.
+	if counter, ok := tq.jobRepo.(interface {
+		CountActiveByOwner(context.Context, uint) (int64, error)
+	}); ok {
+		job, err := tq.jobRepo.FindByID(context.Background(), jobID)
+		if err != nil {
+			return err
+		}
+		count, err := counter.CountActiveByOwner(context.Background(), job.OwnerID)
+		if err != nil {
+			return err
+		}
+		limit := 3
+		if v, e := strconv.Atoi(os.Getenv("USER_ACTIVE_JOB_LIMIT")); e == nil && v > 0 {
+			limit = v
+		}
+		if count > int64(limit) {
+			return fmt.Errorf("user has too many active jobs (limit %d)", limit)
+		}
+	}
 	// Check if queue is already shut down
 	select {
 	case <-tq.ctx.Done():
@@ -161,6 +177,7 @@ func (tq *TaskQueue) EnqueueJob(jobID string) error {
 
 	select {
 	case tq.jobChannel <- jobID:
+		tq.admitted[jobID] = true
 		return nil
 	case <-tq.ctx.Done():
 		return fmt.Errorf("queue is shutting down")
@@ -218,6 +235,9 @@ func (tq *TaskQueue) worker(id int) {
 			tq.jobsMutex.Lock()
 			delete(tq.runningJobs, jobID)
 			tq.jobsMutex.Unlock()
+			tq.admissionMutex.Lock()
+			delete(tq.admitted, jobID)
+			tq.admissionMutex.Unlock()
 
 			// Handle result
 			if err != nil {
@@ -470,12 +490,26 @@ func (tq *TaskQueue) recoverPendingJobs() {
 
 	logger.Info("Recovering pending jobs from previous server run", "count", len(pendingJobs))
 
+	counts := map[uint]int{}
+	limit := 3
+	if n, err := strconv.Atoi(os.Getenv("USER_ACTIVE_JOB_LIMIT")); err == nil && n > 0 {
+		limit = n
+	}
 	for _, job := range pendingJobs {
+		if (job.IsQuick && (job.ExpiresAt == nil || !time.Now().Before(*job.ExpiresAt))) || counts[job.OwnerID] >= limit {
+			_ = tq.updateJobStatus(job.ID, models.StatusFailed)
+			_ = tq.updateJobError(job.ID, "Pending task expired or exceeds the per-account queue limit")
+			continue
+		}
+		tq.admissionMutex.Lock()
 		select {
 		case tq.jobChannel <- job.ID:
+			tq.admitted[job.ID] = true
+			counts[job.OwnerID]++
 			logger.Debug("Recovered pending job", "job_id", job.ID)
 		default:
 			logger.Warn("Queue full during startup recovery, job will remain pending", "job_id", job.ID)
 		}
+		tq.admissionMutex.Unlock()
 	}
 }

@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -48,6 +49,7 @@ interface SpeakerRenameDialogProps {
     initialSpeakers?: string[]; // Detected speakers from transcript
 }
 const SpeakerRenameDialog: React.FC<SpeakerRenameDialogProps> = ({ open, onOpenChange, transcriptionId, onSpeakerMappingsUpdate, initialSpeakers = [], }) => {
+    useInterfaceLanguage();
     const { getAuthHeaders } = useAuth();
     const [speakerMappings, setSpeakerMappings] = useState<Record<string, string>>({});
     const [personIds, setPersonIds] = useState<Record<string, string>>({});

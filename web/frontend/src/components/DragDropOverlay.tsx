@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { FileAudio, Video, Users, Upload, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -9,6 +10,7 @@ interface DragDropOverlayProps {
     errorMessage?: string;
 }
 export function DragDropOverlay({ isDragging, dragCount, fileType = 'single', fileDescription, errorMessage }: DragDropOverlayProps) {
+    useInterfaceLanguage();
     if (!isDragging || dragCount === 0) {
         return null;
     }

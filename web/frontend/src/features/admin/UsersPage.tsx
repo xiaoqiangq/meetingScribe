@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,6 +10,7 @@ import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 export function UsersPage() {
+    useInterfaceLanguage();
     const { data: current, isAdmin, isPending } = useCurrentUser();
     const { getAuthHeaders } = useAuth();
     const client = useQueryClient();

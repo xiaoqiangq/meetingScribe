@@ -1,5 +1,8 @@
 <p align="center"><img src="web/frontend/src/assets/meeting-assistant-waveform.png" width="96" alt="Huiji P logo"></p>
 
+![Huiji P waveform logo](web/frontend/src/assets/meeting-assistant-waveform.png)
+
+
 # Huiji P · 会记P
 
 **A self-hosted workspace for Chinese meeting transcription, speaker diarization and meeting minutes.**

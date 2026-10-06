@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ interface UserSettings {
     default_profile_id?: string;
 }
 export function ProfileSettings() {
+    useInterfaceLanguage();
     const [profileDialogOpen, setProfileDialogOpen] = useState(false);
     const [editingProfile, setEditingProfile] = useState<TranscriptionProfile | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);

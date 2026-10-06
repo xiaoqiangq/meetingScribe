@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { getLocale } from "@/i18n";
 import { useState } from 'react';
@@ -33,6 +34,7 @@ interface Library {
     notice: string;
 }
 export function VoiceprintLibrary() {
+    useInterfaceLanguage();
     const { getAuthHeaders } = useAuth();
     const client = useQueryClient();
     const [name, setName] = useState('');

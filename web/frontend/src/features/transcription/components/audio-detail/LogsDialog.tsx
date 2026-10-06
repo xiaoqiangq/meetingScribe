@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, } from "@/components/ui/dialog";
 import { FileText } from "lucide-react";
@@ -8,6 +9,7 @@ interface LogsDialogProps {
     onClose: (open: boolean) => void;
 }
 export function LogsDialog({ audioId, isOpen, onClose }: LogsDialogProps) {
+    useInterfaceLanguage();
     const { data: logsContent, isLoading } = useLogs(audioId);
     return (<Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-4xl w-[95vw] bg-[var(--bg-card)] border-[var(--border-subtle)] shadow-[var(--shadow-float)] max-h-[90vh] overflow-y-auto">

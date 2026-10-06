@@ -1,3 +1,4 @@
+import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, memo } from "react";
@@ -138,22 +139,22 @@ const WHISPER_MODELS = [
     "medium", "medium.en", "large", "large-v1", "large-v2", "large-v3"
 ];
 const LANGUAGES = [
-    { value: "auto", label: translateUI("Auto-detect") },
-    { value: "en", label: translateUI("English") },
-    { value: "zh", label: translateUI("Chinese") },
-    { value: "de", label: translateUI("German") },
-    { value: "es", label: translateUI("Spanish") },
-    { value: "ru", label: translateUI("Russian") },
-    { value: "ko", label: translateUI("Korean") },
-    { value: "fr", label: translateUI("French") },
-    { value: "ja", label: translateUI("Japanese") },
-    { value: "pt", label: translateUI("Portuguese") },
+    { value: "auto", label: "Auto-detect" },
+    { value: "en", label: "English" },
+    { value: "zh", label: "Chinese" },
+    { value: "de", label: "German" },
+    { value: "es", label: "Spanish" },
+    { value: "ru", label: "Russian" },
+    { value: "ko", label: "Korean" },
+    { value: "fr", label: "French" },
+    { value: "ja", label: "Japanese" },
+    { value: "pt", label: "Portuguese" },
     { value: "tr", label: "Turkish" },
     { value: "pl", label: "Polish" },
     { value: "nl", label: "Dutch" },
     { value: "ar", label: "Arabic" },
     { value: "sv", label: "Swedish" },
-    { value: "it", label: translateUI("Italian") },
+    { value: "it", label: "Italian" },
     { value: "id", label: "Indonesian" },
     { value: "hi", label: "Hindi" },
     { value: "fi", label: "Finnish" },
@@ -163,10 +164,10 @@ const LANGUAGES = [
     { value: "el", label: "Greek" },
 ];
 const CANARY_LANGUAGES = [
-    { value: "en", label: translateUI("English") },
-    { value: "de", label: translateUI("German") },
-    { value: "es", label: translateUI("Spanish") },
-    { value: "fr", label: translateUI("French") },
+    { value: "en", label: "English" },
+    { value: "de", label: "German" },
+    { value: "es", label: "Spanish" },
+    { value: "fr", label: "French" },
 ];
 const PARAM_DESCRIPTIONS = {
     model: "Size of the Whisper model. Larger = more accurate but slower.",
@@ -401,6 +402,7 @@ interface ConfigProps {
     isMultiTrack?: boolean;
 }
 function WhisperConfig({ params, updateParam, isMultiTrack }: ConfigProps) {
+    useInterfaceLanguage();
     return (<div className="space-y-6">
             {/* Essential Settings */}
             <Section title={translateUI("Model Settings")}>
@@ -422,7 +424,7 @@ function WhisperConfig({ params, updateParam, isMultiTrack }: ConfigProps) {
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className={selectContentClassName}>
-                                {LANGUAGES.map((l) => (<SelectItem key={l.value} value={l.value} className={selectItemClassName}>{l.label}</SelectItem>))}
+                                {LANGUAGES.map((l) => (<SelectItem key={l.value} value={l.value} className={selectItemClassName}>{translateUI(l.label)}</SelectItem>))}
                             </SelectContent>
                         </Select>
                     </FormField>
@@ -547,6 +549,7 @@ function WhisperConfig({ params, updateParam, isMultiTrack }: ConfigProps) {
         </div>);
 }
 function FunASRConfig({ params, updateParam, isMultiTrack }: ConfigProps) {
+    useInterfaceLanguage();
     return (<div className="space-y-6">
             <Section title={translateUI("\u4E2D\u6587\u8F6C\u5199")} description={translateUI("\u9ED8\u8BA4\u4F7F\u7528 Qwen3-ASR + Sortformer + Chunk Manager\uFF1B\u4E5F\u53EF\u9009\u62E9\u5176\u4ED6\u6A21\u578B")}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -637,6 +640,7 @@ function FunASRConfig({ params, updateParam, isMultiTrack }: ConfigProps) {
         </div>);
 }
 function ParakeetConfig({ params, updateParam, isMultiTrack }: ConfigProps) {
+    useInterfaceLanguage();
     return (<div className="space-y-6">
             {/* Long-form Audio Settings */}
             <Section title={translateUI("Audio Context")} description={translateUI("Configure how much context the model uses for long audio files")}>
@@ -704,6 +708,7 @@ function ParakeetConfig({ params, updateParam, isMultiTrack }: ConfigProps) {
         </div>);
 }
 function CanaryConfig({ params, updateParam, isMultiTrack }: ConfigProps) {
+    useInterfaceLanguage();
     return (<div className="space-y-6">
             <Section title={translateUI("Language Settings")}>
                 <FormField label={translateUI("Source Language")}>
@@ -712,7 +717,7 @@ function CanaryConfig({ params, updateParam, isMultiTrack }: ConfigProps) {
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent className={selectContentClassName}>
-                            {CANARY_LANGUAGES.map((l) => (<SelectItem key={l.value} value={l.value} className={selectItemClassName}>{l.label}</SelectItem>))}
+                            {CANARY_LANGUAGES.map((l) => (<SelectItem key={l.value} value={l.value} className={selectItemClassName}>{translateUI(l.label)}</SelectItem>))}
                         </SelectContent>
                     </Select>
                 </FormField>
@@ -764,6 +769,7 @@ interface OpenAIConfigProps extends ConfigProps {
     onValidate: () => void;
 }
 function OpenAIConfig({ params, updateParam, isValidating, validationStatus, validationMessage, availableModels, onValidate }: OpenAIConfigProps) {
+    useInterfaceLanguage();
     return (<div className="space-y-6">
             <Section title={translateUI("API Configuration")}>
                 <div className="space-y-4">
@@ -799,7 +805,7 @@ function OpenAIConfig({ params, updateParam, isValidating, validationStatus, val
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className={selectContentClassName}>
-                                {LANGUAGES.map((l) => (<SelectItem key={l.value} value={l.value} className={selectItemClassName}>{l.label}</SelectItem>))}
+                                {LANGUAGES.map((l) => (<SelectItem key={l.value} value={l.value} className={selectItemClassName}>{translateUI(l.label)}</SelectItem>))}
                             </SelectContent>
                         </Select>
                     </FormField>
