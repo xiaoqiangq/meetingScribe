@@ -2,6 +2,12 @@
 
 [English](CHANGELOG.md)
 
+## v0.1.0-rc.3 — 2026-10-06
+
+- Correct the header logo to the exact JPG deployed on GPU1 after v18 verification. The prior rc.2 package still used the older PNG.
+- Preserve the designer's original image bytes and metadata. The website, README and application package now reference the same JPG.
+- 原样同步网站实际使用的新 JPG，保留隐藏设计及原文件元数据；修复 rc.2 漏同步 logo 的问题。
+
 ## v0.1.0-rc.2 — 2026-10-06
 
 - 同步 GPU1 v18 网站、声波 logo 与会记P品牌。

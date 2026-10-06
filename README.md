@@ -1,6 +1,6 @@
-<p align="center"><img src="web/frontend/src/assets/meeting-assistant-waveform.png" width="96" alt="Huiji P logo"></p>
+<p align="center"><img src="web/frontend/src/assets/meeting-assistant-waveform.jpg" width="96" alt="Huiji P logo"></p>
 
-![Huiji P waveform logo](web/frontend/src/assets/meeting-assistant-waveform.png)
+![Huiji P waveform logo](web/frontend/src/assets/meeting-assistant-waveform.jpg)
 
 
 # Huiji P · 会记P

@@ -39,7 +39,7 @@ jobs:
           mkdir -p release/huiji-p/web/frontend/src/assets
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=$version -X main.commit=$GITHUB_SHA -X main.date=$(date -u +%FT%TZ)" -o release/huiji-p/huiji-p ./cmd/server
           cp .env.example VERSION README.md README.en.md README.zh-CN.md LICENSE CHANGELOG.md CHANGELOG.zh-CN.md release/huiji-p/
-          cp web/frontend/src/assets/meeting-assistant-waveform.png release/huiji-p/web/frontend/src/assets/
+          cp web/frontend/src/assets/meeting-assistant-waveform.jpg release/huiji-p/web/frontend/src/assets/
           cp -R docs runtime scripts deploy release/huiji-p/
           python - <<'PYINFO'
           import json, os, pathlib

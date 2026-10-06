@@ -1,6 +1,6 @@
 import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
-import waveformLogo from "@/assets/meeting-assistant-waveform.png";
+import waveformLogo from "@/assets/meeting-assistant-waveform.jpg";
 import { ScriberrTextLogo } from "./ScriberrTextLogo";
 export function ScriberrLogo({ className = "", onClick }: {
     className?: string;
