@@ -1,8 +1,5 @@
 <p align="center"><img src="web/frontend/src/assets/meeting-assistant-waveform.jpg" width="96" alt="会记P logo"></p>
 
-![Huiji P waveform logo](web/frontend/src/assets/meeting-assistant-waveform.jpg)
-
-
 # 会记P · Huiji P
 
 **面向中文会议的自托管语音转写、说话人区分与会议纪要工作台。**
