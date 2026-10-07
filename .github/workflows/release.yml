@@ -1,5 +1,15 @@
 name: Publish release candidate
 on:
+  workflow_dispatch:
+    inputs:
+      replace_existing:
+        description: 'Explicitly replace the current candidate tag and attachments'
+        type: boolean
+        default: false
+      expected_tag_sha:
+        description: 'Required old tag commit SHA when replacing a published candidate'
+        type: string
+        default: ''
   push:
     branches: [main]
     paths: ['VERSION']
@@ -58,9 +68,21 @@ jobs:
       - name: Publish verified candidate and attachments
         env:
           GH_TOKEN: ${{ github.token }}
+          REPLACE_EXISTING: ${{ github.event_name == 'workflow_dispatch' && inputs.replace_existing }}
+          EXPECTED_TAG_SHA: ${{ inputs.expected_tag_sha }}
         shell: bash
         run: |
           version=$(cat VERSION)
           cp docs/RELEASE-NOTES.md release/notes.md
           printf '\nSource commit: `%s`\n' "$GITHUB_SHA" >> release/notes.md
-          gh release create "$version" "release/huiji-p-$version-linux-amd64.tar.gz" release/SHA256SUMS --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "MeetingScribe $version — Realtime meeting transcription" --notes-file release/notes.md --prerelease
+          if [[ "$REPLACE_EXISTING" == true ]]; then
+            [[ "$EXPECTED_TAG_SHA" =~ ^[0-9a-f]{40}$ ]]
+            actual_tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$version" --jq '.object.sha')
+            [[ "$actual_tag_sha" == "$EXPECTED_TAG_SHA" ]]
+            gh release view "$version" --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq '.isPrerelease' | grep -qx true
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$version" -f sha="$GITHUB_SHA" -F force=true
+            gh release upload "$version" "release/huiji-p-$version-linux-amd64.tar.gz" release/SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$version" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "MeetingScribe $version — Realtime meeting transcription" --notes-file release/notes.md --prerelease
+          else
+            gh release create "$version" "release/huiji-p-$version-linux-amd64.tar.gz" release/SHA256SUMS --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "MeetingScribe $version — Realtime meeting transcription" --notes-file release/notes.md --prerelease
+          fi

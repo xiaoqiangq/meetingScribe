@@ -2,7 +2,7 @@
 
 # MeetingScribe
 
-**A self-hosted workspace for Chinese meeting transcription, speaker diarization and meeting minutes.**
+**A self-hosted workspace for uploaded recordings and realtime microphone transcription, speaker diarization and meeting minutes.**
 
 [简体中文](README.zh-CN.md) · [Installation](docs/INSTALL.en.md) · [Architecture](docs/ARCHITECTURE.en.md) · [Models](docs/MODELS.en.md) · [User guide](docs/USAGE.md#english-quick-guide)
 
@@ -13,6 +13,7 @@ Built on [Scriberr](https://github.com/rishikanthc/Scriberr). Speech recognition
 | Feature | Behavior |
 | --- | --- |
 | Interface and language | English by default; persistent English / 中文 switch; audio language chosen independently |
+| Realtime microphone | Live text and session-local speaker labels; pause/resume and continuous audio/text saving |
 | Short recordings | Diarize the full recording and produce timed transcripts |
 | Long meetings | Manually divide topics and diarize them sequentially with independent caches |
 | Speaker review | Keep topic-local labels and propose links for human confirmation |
@@ -40,9 +41,20 @@ Built on [Scriberr](https://github.com/rishikanthc/Scriberr). Speech recognition
 | **Qwen3-ForcedAligner-0.6B** | Aligns supplied text to audio; upstream supports 11 languages | Word/token timestamps for highlighting, Listen seeking and attribution using Nemotron intervals |
 | **FSMN-VAD** | Compact speech/silence detector; deployed main weights are about 1.72 MB | Pause-aware chunk planning while preserving the original audio timeline |
 
-[Model strengths and integration details](docs/MODELS.en.md#why-these-models) includes official sources and practical limits. The upload workflow offers auto-detection and 11 audio language choices. Upstream streaming capability does not imply live transcription here; most language choices still need individual acceptance testing.
+[Model strengths and integration details](docs/MODELS.en.md#why-these-models) includes official sources and practical limits. The upload workflow offers auto-detection and 11 audio language choices. Realtime microphone transcription uses a separately provisioned Qwen/vLLM environment; most language choices still need individual acceptance testing.
 
-## Complete processing pipeline
+## Realtime microphone transcription
+
+Open **Realtime transcription**, allow microphone access, choose the input device and start recording. Text appears as you speak; the current draft can change. Confirmed text is saved before background word alignment and speaker updates complete. Pause to listen to saved audio, resume the same session, or finish and wait for final processing.
+
+- **Shared project page:** realtime recordings appear in the project list and reuse playback, word timestamps, speaker naming, notes, exports and meeting minutes. Minutes and transcript chat become available after recording ends.
+- **Readable transcripts:** upload and realtime results share paragraph and speaker-display rules. Missing labels follow the preceding display voice across fragments; original model labels and word timestamps are retained. Display attribution can be wrong when a speaker change is not recognized.
+- **Continuous saving:** received audio and confirmed text are stored on the server. Closing or refreshing stops capture; unsent tail audio and the browser's temporary download copy can be lost. Reopen the saved project to review it; resuming a microphone session after closing the page is not supported.
+- **Optional full-recording reprocessing:** after finishing, select **Refine with upload workflow** and a saved profile to replace the project's transcript using the complete saved recording. This is a manual action.
+
+Microphone access requires HTTPS or localhost. One realtime session can run at a time, for up to 30 minutes, sharing GPU admission with uploaded-file transcription. Speaker numbers apply only to that session. The existing Qwen3-ASR checkpoint is reused, but vLLM, Nemotron and alignment workers need separate runtime environments. See [setup and processing details](docs/REALTIME.md). The current candidate is [v0.1.0-rc.5](https://github.com/xiaoqiangq/meetingScribe/releases/tag/v0.1.0-rc.5); fresh GPU installation, long-meeting performance and reference-scored speaker accuracy remain pending.
+
+## Uploaded-recording processing pipeline
 
 ```text
 Full recording ──┬──→ Short mode: Nemotron on the complete recording
