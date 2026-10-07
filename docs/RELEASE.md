@@ -4,7 +4,7 @@
 
 ## 版本与发布门槛
 
-当前为 `Unreleased`。首次候选建议使用 `v0.1.0-rc.1`；完成全新 GPU 环境验收后才发布 `v0.1.0`。版本号描述MeetingScribe，不沿用 Scriberr 的原版版本号。
+当前候选为 `v0.1.0-rc.5`；完成全新 GPU 环境验收后才发布 `v0.1.0`。版本号描述 MeetingScribe，不沿用 Scriberr 的原版版本号。
 
 - CI 必须在待发布提交上通过：前端测试/构建、Python 桥接测试、所选 Go 回归测试、Compose 配置和 Docker 构建。
 - GPU 验收报告必须记录提交、环境、模型 revision、真实短/长音频结果及峰值资源。
@@ -14,11 +14,9 @@
 
 ## 自动候选打包
 
-`.github/workflows/release.yml` 在 `v*` tag 推送时重新运行验证并生成 Linux amd64 包和 SHA256SUMS，作为 Actions artifact 保存 30 天。该 workflow 只读仓库，不自动创建 Release、不部署线上。
+`.github/workflows/release.yml` 在 `main` 的 `VERSION` 更新时运行验证、Compose 校验与 Docker 构建，通过后生成 Linux amd64 包、SHA256SUMS、版本标签与预发布 Release。Actions artifact 保留 30 天；发布不自动部署线上。
 
-安装包包含网站二进制、示例配置、模型运行源码、安装助手与文档；不包含模型权重、Python 环境、录音或数据库。管理员审核 artifact 和 GPU 验收后，将原样 artifact 与校验清单附到 GitHub Release，保留对应 tag 和发布说明。
-
-创建 tag 前应先确认 `main` 的 CI 通过，不能只因为版本号存在就称为稳定。
+安装包包含网站二进制、示例配置、模型运行源码、安装助手与文档，不包含模型权重、Python 环境、录音或数据库。当前说明见 [发布说明](RELEASE-NOTES.md)。版本号与标签不代表已经达到稳定版验收门槛。
 
 ## 升级
 

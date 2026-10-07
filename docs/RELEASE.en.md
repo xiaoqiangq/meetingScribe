@@ -4,7 +4,7 @@
 
 ## Versioning and release gates
 
-The code remains under `Unreleased` in the changelog. The first candidate version is `v0.1.0-rc.1`; promote to `v0.1.0` only after fresh GPU acceptance. Versions identify MeetingScribe, rather than inheriting Scriberr's upstream version.
+The current candidate is `v0.1.0-rc.5`; promote to `v0.1.0` only after fresh GPU acceptance. Versions identify MeetingScribe rather than inheriting the upstream Scriberr version.
 
 - CI must pass on the candidate commit: frontend tests/build, Python bridge tests, selected Go checks, Compose validation and Docker build.
 - GPU acceptance must record the commit, environment, model revisions, real short/long recording results and peak resources.
@@ -14,11 +14,9 @@ The code remains under `Unreleased` in the changelog. The first candidate versio
 
 ## Candidate packaging
 
-The `.github/workflows/release.yml` workflow responds to `v*` tag pushes, reruns verification and creates a Linux amd64 package plus SHA256SUMS. Actions artifacts are retained for 30 days. The workflow has read-only repository permissions and does not publish a Release or deploy production automatically.
+The `.github/workflows/release.yml` workflow runs when `VERSION` changes on `main`. Verification, Compose validation and Docker build must pass before packaging Linux amd64 binaries and SHA256SUMS and creating the version tag and pre-release. Actions artifacts are retained for 30 days. Publication does not deploy production.
 
-Packages contain the application binary, sample configuration, model runtime source, installation helpers and documentation. They exclude model weights, Python environments, recordings and databases. After review, attach the unchanged artifact and checksums to a GitHub Release with its tag and notes. Any separately built package must state its source commit and build origin.
-
-Confirm CI on the intended commit before tagging. A version number alone does not establish stability.
+Packages contain the application binary, sample configuration, model runtime source, installation helpers and documentation. They exclude model weights, Python environments, recordings and databases. See [current notes](RELEASE-NOTES.md). A version number or tag alone does not establish stability.
 
 ## Upgrade procedure
 

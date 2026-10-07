@@ -2,6 +2,14 @@
 
 [简体中文](CHANGELOG.zh-CN.md)
 
+## v0.1.0-rc.5 — 2026-10-07
+
+- Queue realtime audio inference separately from receipt; run word alignment asynchronously with bounded backlogs and retain confirmed text on alignment failure.
+- Keep GPU admission until final processing completes; support legacy finish requests and prevent cleanup from abandoning completed recordings.
+- Recover supported word-local speaker labels and keep candidate evidence local to each word, without speaker-triggered ASR cuts.
+- Unify upload and realtime reading: carry missing display speaker labels across ASR fragments, hide identity-status badges, and preserve original labels, word indices and timestamps.
+- Add client build detection with recording-safe refresh guidance. Validation includes 62 frontend tests, 35 realtime Python tests, six chunk-planner tests, targeted Go race checks, builds and verified GPU deployment. Fresh GPU installation and reference-scored meeting accuracy remain pending; pre-release.
+
 ## v0.1.0-rc.4 — 2026-10-07
 
 - Use MeetingScribe consistently in both interface languages; retain upstream attribution and compatible runtime identifiers.

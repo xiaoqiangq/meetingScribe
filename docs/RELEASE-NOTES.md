@@ -1,23 +1,24 @@
-# MeetingScribe v0.1.0-rc.4 — Realtime meeting transcription
+# MeetingScribe v0.1.0-rc.5 — Realtime processing and readable transcripts
 
-Adds a separate realtime microphone option while retaining uploaded-audio processing. The existing Qwen3-ASR-1.7B checkpoint runs through a separate vLLM environment, with continuous Nemotron-3 speaker tracking, FSMN VAD and ForcedAligner. No additional ASR checkpoint is required; vLLM and worker environments must be provisioned separately. See [realtime setup](REALTIME.md) and the sanitized [configuration example](../deploy/realtime.env.example).
+Realtime PCM receipt now acknowledges ordered audio without waiting for model inference. Word alignment runs independently with bounded queues; confirmed text is retained when alignment is unavailable. Speaker changes no longer reset ASR context. Finishing drains inference and alignment before releasing GPU admission, including compatibility with older pages.
 
-Realtime meetings use the existing audio project page: speaker names, transcript editing, playback with seeking, notes and meeting minutes. Audio and confirmed text are saved continuously. Incremental Chunk Manager retains context across short pauses, waits before confirming speaker changes and shares the upload planner's duration limits. Unknown/overlapping voices remain pending. Final recordings can be reprocessed manually using an existing profile, updating the same project's transcript.
+Word-local speaker evidence can recover strong words in short runs of an established voice. Candidates are restricted to the word's own time interval. These changes do not establish reference-scored diarization accuracy.
 
-This release also unifies MeetingScribe branding, includes the verified GPU source baseline and local font licenses, repairs unknown recording duration and improves profile-dialog layout. Upstream Scriberr attribution is retained.
+Upload and realtime transcripts share the same reading presentation. Missing speaker labels follow the preceding display voice across ASR fragment boundaries; explicit labels take precedence and a leading unknown stays unnamed. Identity-status badges are hidden. Original labels, timestamps and word indices remain intact, so display attribution is not a model confirmation. Unrecognized speaker changes can be displayed under the preceding voice.
+
+Pages detect a new build and ask users to finish recording and download a backup before refreshing. Completed recordings hide leftover draft text. This release does not add resumable microphone sessions after closing a page; already saved checkpoints are retained, but unsent audio can be lost.
 
 ## Validation and limits
 
-- 58 frontend tests, 20 realtime Python tests and six original Chunk Manager tests passed; TypeScript, frontend and Linux amd64 builds passed.
-- Existing GPU deployment is healthy. A 45-second public multi-voice fixture completed with draft text, word timestamps, speaker labels and incremental cuts. This is an inference smoke test, not a speaker-accuracy or microphone latency benchmark.
-- One realtime session at a time, up to 30 minutes. Ordinary transcription and realtime inference share admission control. Microphone access requires HTTPS or localhost.
-- Saved checkpoints survive interruption; unsent audio and unconfirmed text may be lost. Short/similar/overlapping voices may remain unresolved or be labelled incorrectly.
-- Fresh GPU installation, complete upgrade/rollback acceptance and broad browser testing remain pending. This remains a pre-release. The new reprocessing profile selection needs browser acceptance testing.
+- 62 frontend tests, 35 realtime Python tests, six original Chunk Manager tests and realtime API/queue race checks passed locally. TypeScript, frontend and Linux amd64 builds passed.
+- Existing GPU deployment is healthy. Program, frontend assets and launchers were verified; model and offline runtime checksums were retained. Browser checks confirmed unique word indices, unchanged timestamps and identical upload/realtime presentation for the same data.
+- One realtime session at a time, up to 30 minutes. Microphone access requires HTTPS or localhost. Qwen/vLLM, Nemotron and alignment workers require separately provisioned environments; see [setup](REALTIME.md).
+- Fresh GPU installation, complete upgrade/rollback acceptance, long-meeting performance and reference-scored speaker accuracy remain pending. This is a pre-release.
 
-The workflow publishes the Linux archive and SHA256SUMS only after its verification, Compose and Docker build checks pass. Compatible package filenames retain `huiji-p`. Weights, Python/CUDA environments, recordings, databases, voiceprints, credentials and private validation artifacts are excluded. Publishing does not restart an existing deployment.
+The workflow creates the version tag and publishes the Linux amd64 archive with SHA256SUMS only after verification, Compose and Docker checks pass. Package filenames retain compatible huiji-p identifiers and upstream Scriberr attribution. Weights, Python/CUDA environments, recordings, databases, voiceprints, credentials and private validation artifacts are excluded. Publication does not restart production.
 
 ## 中文
 
-新增独立的实时麦克风转写入口，复用现有音频项目的角色、文字、播放、笔记和纪要流程。音频与确认文字持续保存；增量分块避免短停顿频繁重置上下文，临时文字行内展示。结束后可按原有配置重新处理完整录音并更新当前项目。
+本次修复实时转写接收阻塞、慢对齐及结束兼容问题，改进字词局部说话人判定。上传与实时正文共用展示规则，没有说话人的内容跨片段沿用前一位显示归属，保留明确换人、原始标签和时间戳；不显示身份待确认等提示。显示沿用不代表模型确认，未识别的换人仍可能归到前一位。
 
-已有 GPU 部署及公开音频流式冒烟测试通过，但不等同于真人会议分人准确率验收。实时环境需独立配置；单次最长 30 分钟，限制一个会话。版本继续标记预发布，安装包不包含模型权重、环境或私人会议资料。
+已有 GPU 部署、本地测试与浏览器字词完整性检查通过。全新 GPU 安装、长会议性能与参考答案准确率仍待验收，版本保持预发布。关闭网页会停止录音，服务器保留已保存部分，未上传尾音可能丢失；本版没有跨页面恢复录音会话功能。
