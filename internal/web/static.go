@@ -33,6 +33,17 @@ func GetIndexHTML() ([]byte, error) {
 // SetupStaticRoutes configures static file serving in Gin
 func SetupStaticRoutes(router *gin.Engine, authService *auth.AuthService) {
 
+	// Always fetch the live build marker, outside the PWA precache.
+	router.GET("/client-version.json", func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store")
+		data, err := staticFiles.ReadFile("dist/client-version.json")
+		if err != nil {
+			c.Status(http.StatusServiceUnavailable)
+			return
+		}
+		c.Data(http.StatusOK, "application/json", data)
+	})
+
 	// Serve static assets (CSS, JS, images) directly from embedded filesystem
 	router.GET("/assets/*filepath", func(c *gin.Context) {
 		// Extract the file path

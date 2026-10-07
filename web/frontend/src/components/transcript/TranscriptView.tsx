@@ -25,6 +25,9 @@ interface WordSegment {
     word: string;
     score: number;
     speaker?: string;
+    alignment_status?: 'pending' | 'complete' | 'unavailable';
+    speaker_status?: 'pending' | 'provisional' | 'confirmed';
+    speaker_uncertain_reason?: string;
 }
 interface Transcript {
     realtime?: boolean;
@@ -34,6 +37,9 @@ interface Transcript {
         end: number;
         text: string;
         speaker?: string;
+    alignment_status?: 'pending' | 'complete' | 'unavailable';
+    speaker_status?: 'pending' | 'provisional' | 'confirmed';
+    speaker_uncertain_reason?: string;
     }>;
     word_segments?: WordSegment[];
 }
@@ -80,7 +86,8 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
     const isDesktop = useIsDesktop();
     // Use CSS Highlight API for Compact Mode
     // Note: We only use this hook when in compact mode to save resources
-    const words = displayTranscript?.word_segments || [];
+    const awaitingAlignment = displayTranscript?.segments?.some(segment => segment.alignment_status === 'pending' || segment.alignment_status === 'unavailable');
+    const words = awaitingAlignment ? [] : displayTranscript?.word_segments || [];
     const { fullText, offsets } = useKaraokeHighlight(containerRef, words, currentTime, isPlaying);
     const compactSelectionMap = useMemo(() => JSON.stringify(offsets.map((offset, wordIndex) => ({
         startChar: offset.startChar,
@@ -164,6 +171,10 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
         displayTranscript.segments.forEach((segment, index) => {
             const segmentWords = wordsBySegment[index];
             if (segmentWords.length === 0) {
+                // Complete segments are derived from the aligned words, all
+                // assigned once above. Equal starts can move those words into
+                // a neighbor; rendering the segment text again duplicates it.
+                if (segment.alignment_status === 'complete') return;
                 appendReadingParagraph(paragraphs, { ...segment, fullText: segment.text, offsets: [{
                     startChar:0, endChar:segment.text.length, startTime:segment.start,
                     endTime:segment.end, word:segment.text,
@@ -174,10 +185,13 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
             // speaker changes so the timeline shows the actual turn boundaries.
             const runs: Array<{
                 speaker?: string;
+    alignment_status?: 'pending' | 'complete' | 'unavailable';
+    speaker_status?: 'pending' | 'provisional' | 'confirmed';
+    speaker_uncertain_reason?: string;
                 words: WordSegment[];
             }> = [];
             for (const word of segmentWords) {
-                const speaker = displayTranscript.realtime ? (word.speaker ?? undefined) : (word.speaker || runs[runs.length - 1]?.speaker || segment.speaker);
+                const speaker = word.speaker || runs[runs.length - 1]?.speaker || segment.speaker;
                 const lastRun = runs[runs.length - 1];
                 if (!lastRun || lastRun.speaker !== speaker) {
                     runs.push({ speaker, words: [word] });
@@ -197,6 +211,7 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
                     start: sentenceWords[0].start,
                     end: sentenceWords[sentenceWords.length - 1].end,
                     speaker: run.speaker,
+                    speaker_status: sentenceWords[0].speaker_status,
                     fullText,
                     offsets,
                 };
@@ -314,10 +329,10 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
     }
     const lastParagraph = expandedData[expandedData.length-1];
     const attachDraft = shouldAttachRealtimeDraft(lastParagraph ? {...lastParagraph,text:lastParagraph.fullText} : undefined, livePartial);
-    const draftText = livePartial?.text ? <span data-transcript-draft="true" className="select-none text-muted-foreground">{` ${translateUI('Recognizing…')}${!livePartial.speaker ? ` · ${translateUI('Speaker pending')}` : ''} `}{livePartial.text}</span> : null;
+    const draftText = livePartial?.text ? <span data-transcript-draft="true" className="select-none text-muted-foreground">{` ${translateUI('Recognizing…')} `}{livePartial.text}</span> : null;
     // Render transcript with word-level highlighting for compact view
     const renderCompactView = () => {
-        if (!displayTranscript?.word_segments?.length) {
+        if (awaitingAlignment || !displayTranscript?.word_segments?.length) {
             return <p className="text-lg leading-relaxed text-carbon-700 dark:text-carbon-300 whitespace-pre-wrap">{displayTranscript?.text}{draftText}</p>;
         }
         return (<div ref={containerRef} data-selection-map={compactSelectionMap} onClick={isDesktop ? handleWordClick : undefined} className={cn("text-lg leading-relaxed text-carbon-700 dark:text-carbon-300 whitespace-pre-wrap font-reading selection:bg-orange-500/30 transition-colors duration-200 select-text", isDesktop && isModifierPressed ? 'cursor-pointer hover:text-carbon-900 dark:hover:text-carbon-100' : 'cursor-text')} style={{
@@ -351,8 +366,8 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
                             {isNewTurn && (<button type="button" onClick={() => onSeek(segment.start)} title={translateUI("\u4ECE\u8FD9\u91CC\u64AD\u653E")} className="font-mono bg-carbon-100 dark:bg-carbon-800/80 px-1.5 py-0.5 rounded text-[10px] sm:text-xs hover:text-[var(--brand-solid)] cursor-pointer">
                                     {new Date(segment.start * 1000).toISOString().substr(11, 8)}
                                 </button>)}
-                            {(segment.speaker || displayTranscript.realtime) && isNewTurn && (<span className="font-medium text-carbon-700 dark:text-carbon-300 truncate max-w-full" title={segment.speaker ? getDisplaySpeakerName(segment.speaker) : translateUI('Speaker pending')}>
-                                    {segment.speaker ? getDisplaySpeakerName(segment.speaker) : translateUI('Speaker pending')}
+                            {segment.speaker && isNewTurn && (<span className="font-medium text-carbon-700 dark:text-carbon-300 truncate max-w-full" title={getDisplaySpeakerName(segment.speaker)}>
+                                    {getDisplaySpeakerName(segment.speaker)}
                                 </span>)}
                         </div>
 
@@ -389,7 +404,7 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
             {livePartial?.text && mode !== 'compact' && displayTranscript?.segments?.length && !attachDraft && <div className="flex flex-col sm:flex-row items-start gap-4 px-3 py-3">
                 <div className="flex-shrink-0 w-24 sm:w-28 flex flex-col sm:items-end gap-1 text-xs text-muted-foreground">
                     <span>{translateUI('Recognizing…')}</span>
-                    <span>{livePartial.speaker ? getDisplaySpeakerName(livePartial.speaker) : translateUI('Speaker pending')}</span>
+                    {livePartial.speaker && <span>{getDisplaySpeakerName(livePartial.speaker)}</span>}
                 </div>
                 <p className="min-w-0 flex-1 text-base leading-relaxed whitespace-normal break-words text-muted-foreground">{livePartial.text}</p>
             </div>}

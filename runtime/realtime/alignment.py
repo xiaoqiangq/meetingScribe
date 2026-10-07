@@ -9,13 +9,17 @@ protocol = sys.stdout
 sys.stdout = sys.stderr
 import numpy as np
 import torch
-from qwen_asr import Qwen3ForcedAligner
-from funasr import AutoModel
 sys.path.insert(0, os.getenv("REALTIME_SHARED_FUNASR", str(Path(__file__).resolve().parents[1] / "funasr")))
 from qwen3_transcribe import _aligned_words, VAD_DIR
 
-aligner = Qwen3ForcedAligner.from_pretrained(os.environ["REALTIME_ALIGNER_MODEL"], device_map="cuda", dtype=torch.bfloat16)
-vad = AutoModel(model=str(VAD_DIR), device="cpu", disable_update=True, disable_pbar=True)
+# Separate processes keep slow GPU alignment off the VAD/ASR critical path.
+aligner = vad = None
+if "--vad-only" not in sys.argv:
+    from qwen_asr import Qwen3ForcedAligner
+    aligner = Qwen3ForcedAligner.from_pretrained(os.environ["REALTIME_ALIGNER_MODEL"], device_map="cuda", dtype=torch.bfloat16)
+if "--align-only" not in sys.argv:
+    from funasr import AutoModel
+    vad = AutoModel(model=str(VAD_DIR), device="cpu", disable_update=True, disable_pbar=True)
 cache, active = {}, False
 last_speech_end = None
 

@@ -30,7 +30,7 @@ class Assistant:
         # Per-window normalization changes earlier features; disable it for streaming.
         self.model.preprocessor.featurizer.normalize = None
         self.model.preprocessor.featurizer.dither = 0.0
-        self.aligner = Worker(python=os.environ["REALTIME_ALIGNER_PYTHON"], script="alignment.py")
+        self.aligner = Worker(python=os.environ["REALTIME_ALIGNER_PYTHON"], script="alignment.py", args=("--vad-only",))
         self.reset()
 
     def reset(self):
@@ -84,18 +84,15 @@ class Assistant:
         advice["speaker"], advice["turn"] = self.timeline.tail()
         return advice
 
-    @torch.inference_mode()
-    def align(self, pcm, text, language, offset):
-        audio = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768
-        aligned = self.aligner.align(audio, text, language, offset)
-        words = aligned["words"]
-        if not words:
-            return aligned
-        return self.relabel(words)
-
     def relabel(self, words):
         for word in words:
             word["speaker"] = self.timeline.label_interval(word["start"], word["end"])
+            if word["speaker"] is None:
+                word["speaker_uncertain_reason"] = "overlap" if self.timeline.has_overlap(word["start"], word["end"]) else "unconfirmed"
+                word["speaker_candidates"] = self.timeline.candidates_in_interval(word["start"], word["end"])
+            else:
+                word.pop("speaker_uncertain_reason", None)
+                word.pop("speaker_candidates", None)
         return dict(words=words, segments=group_words(words))
 
 
@@ -114,8 +111,6 @@ for line in sys.stdin:
             reply = worker.push(**message)
         elif action == "finish":
             reply = worker.push(b"", final=True)
-        elif action == "align":
-            reply = worker.align(**message)
         elif action == "relabel":
             reply = worker.relabel(**message)
         else:

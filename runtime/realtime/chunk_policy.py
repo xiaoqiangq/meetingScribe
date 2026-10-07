@@ -12,33 +12,20 @@ from chunk_manager import MIN_CHUNK_S, TARGET_CHUNK_S, MAX_CHUNK_S, LONG_SILENCE
 
 
 class StreamingChunkManager:
-    lookahead = .8
-
     def __init__(self):
         self.reset()
 
     def reset(self):
         self.silence_start = None
-        self.pending_turn = None
-        self.last_turn = None
 
     def decide(self, start, now, advice):
         if advice.get('endpoint'):
             self.silence_start = advice.get('speech_end') if advice.get('speech_end') is not None else now
         elif advice.get('voiced'):
             self.silence_start = None
-        turn = advice.get('turn')
-        if turn and turn != self.last_turn:
-            self.last_turn = turn
-            # A cut is confirmed at an incoming packet edge after lookahead;
-            # do not rewind/re-feed audio already consumed by Qwen.
-            self.pending_turn = now + self.lookahead
         elapsed = now - start
         if elapsed >= MAX_CHUNK_S:
             return 'max_context'
-        if self.pending_turn is not None and now >= self.pending_turn and elapsed >= 2:
-            self.pending_turn = None
-            return 'sustained_speaker_change'
         if self.silence_start is not None:
             silence = now - self.silence_start
             # Short utterances remain live until silence is clearly sustained;

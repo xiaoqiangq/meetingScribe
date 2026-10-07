@@ -592,5 +592,18 @@
   "Refine with upload workflow": "按上传流程重新转写",
   "Reprocess the full recording with a saved profile. This updates this project’s transcript.": "选择已保存配置重新处理完整录音，并更新此项目的转写结果。",
   "Choose a single-track profile for this recording.": "请为这段录音选择单音轨配置。",
-  "Transcription request failed": "转写请求失败"
+  "Transcription request failed": "转写请求失败",
+  "Short speaker gaps joined from matching context; review if needed.": "短小未确认片段已按前后同一角色衔接，必要时请复核。",
+  "Detected speakers": "已识别说话人数",
+  "Draft text may change. Confirmed text is retained while timestamps and speaker labels are updated separately.": "识别中的文字可能修订。确认文字会保留，时间戳与说话人标签随后独立更新。",
+  "Confirmed text · timestamps and speakers pending": "文字已确认 · 正在补充时间戳与说话人",
+  "Text confirmed · timestamps pending": "文字已确认 · 时间戳待补充",
+  "Text confirmed · timestamps unavailable": "文字已确认 · 暂无字词时间戳",
+  "Text confirmed · speaker pending": "文字已确认 · 说话人待确认",
+  "Text confirmed · speaker provisional": "文字已确认 · 说话人暂定",
+  "Text and speaker confirmed": "文字与说话人已确认",
+  "Final processing timed out. Saved audio and text are retained.": "最终处理超时，已保存的录音与文字会保留。",
+  "A new version is available. Finish recording and download your audio before refreshing. Recording will not be interrupted.": "有新版本可用。请先结束录音并下载备份，再刷新页面。当前录音不会因此中断。",
+  "Some text follows the previous speaker for reading; speaker assignment needs review.": "部分文字沿用前一说话人以保持阅读连贯，身份仍待核对。",
+  "Contains speaker assignments needing review": "包含说话人待核对文字"
 }

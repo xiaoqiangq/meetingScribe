@@ -20,6 +20,7 @@ type liveSession struct {
 	Owner            uint
 	Touched          time.Time
 	Finished         bool
+	FinishRequested  bool
 	SavedID          string
 	AudioPath        string
 	AudioSize        int64
@@ -146,12 +147,12 @@ func (h *Handler) UpdateRealtime(c *gin.Context) {
 		return
 	}
 	action := c.Param("action")
-	if action != "chunk" && action != "finish" && action != "cancel" && action != "pause" && action != "heartbeat" {
+	if action != "chunk" && action != "finish" && action != "cancel" && action != "pause" && action != "heartbeat" && action != "result" {
 		c.JSON(400, gin.H{"error": "Unknown action"})
 		return
 	}
 	if s.Finished {
-		if action == "finish" && len(s.Result) != 0 {
+		if (action == "finish" || action == "result") && len(s.Result) != 0 {
 			s.Touched = time.Now()
 			c.Data(200, "application/json", s.Result)
 			return
@@ -162,6 +163,14 @@ func (h *Handler) UpdateRealtime(c *gin.Context) {
 		}
 		c.JSON(409, gin.H{"error": "Session already finished"})
 		return
+	}
+	// Old pages send cancel immediately after their single finish response.
+	// Once finishing was requested, cancellation must not discard its outcome.
+	if action == "finish" {
+		s.FinishRequested = true
+	}
+	if action == "cancel" && s.FinishRequested {
+		action = "finish"
 	}
 	query := ""
 	if action == "chunk" {
@@ -179,17 +188,57 @@ func (h *Handler) UpdateRealtime(c *gin.Context) {
 		c.JSON(503, gin.H{"error": err.Error()})
 		return
 	}
+	// Legacy clients expect finish to return the final snapshot. New clients opt
+	// into polling; the model service itself remains asynchronous in both cases.
+	deadline := time.Now().Add(50 * time.Second)
+	for action == "finish" && c.Query("async") != "1" && code == 200 && err == nil {
+		var progress struct {
+			Finished *bool `json:"finished"`
+		}
+		if json.Unmarshal(data, &progress) != nil || progress.Finished == nil || *progress.Finished {
+			break
+		}
+		if time.Now().After(deadline) {
+			c.JSON(503, gin.H{"error": "Final processing is still running; retry finish"})
+			return
+		}
+		select {
+		case <-c.Request.Context().Done():
+			return
+		case <-time.After(250 * time.Millisecond):
+		}
+		s.Touched = time.Now()
+		h.taskQueue.RenewRealtime()
+		code, data, err = liveCall(c, "/sessions/"+s.ID+"/finish", nil)
+	}
+	if err != nil {
+		c.JSON(503, gin.H{"error": err.Error()})
+		return
+	}
 	if code == 200 {
+		// Keep admission until background inference/alignment confirms completion.
+		finishComplete := action == "finish"
+		if finishComplete {
+			var progress struct {
+				Finished *bool `json:"finished"`
+			}
+			if json.Unmarshal(data, &progress) == nil && progress.Finished != nil {
+				finishComplete = *progress.Finished
+			}
+		}
 		if s.SavedID != "" {
 			status := models.StatusProcessing
-			if action == "finish" {
+			if finishComplete {
 				s.Finished = true
 				status = models.StatusCompleted
 			}
 			if action == "cancel" {
 				s.Finished = true
 				status = models.StatusFailed
-				data = s.Result
+				var retained map[string]json.RawMessage
+				if json.Unmarshal(data, &retained) != nil || retained["text"] == nil {
+					data = s.Result // Legacy model services only return cancelled:true.
+				}
 			}
 			message := ""
 			if action == "cancel" {
@@ -203,7 +252,7 @@ func (h *Handler) UpdateRealtime(c *gin.Context) {
 			data = s.Result
 		}
 		s.Touched = time.Now()
-		if action == "finish" || action == "cancel" {
+		if finishComplete || action == "cancel" {
 			s.Finished = true
 			if action == "finish" {
 				s.Result = append(json.RawMessage(nil), data...)

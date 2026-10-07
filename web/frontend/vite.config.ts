@@ -2,16 +2,24 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from "path"
+import { randomUUID } from "node:crypto"
+
+const buildID = randomUUID()
 
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  define: { 'import.meta.env.VITE_MEETINGSCRIBE_BUILD_ID': JSON.stringify(buildID) },
   plugins: [
+    { name: 'meetingscribe-client-version', generateBundle() {
+      this.emitFile({type:'asset', fileName:'client-version.json', source:JSON.stringify({version:buildID})});
+    } },
     react(),
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: { globIgnores: ['**/client-version.json'] },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'MeetingScribe',

@@ -185,3 +185,49 @@ Original stored segments and word timestamps remain unchanged.
 - Previous program and actual launcher remain in this deployment's `rollback/`;
   complete private evidence is under `.local/validation/` and `.local/screenshots/`.
   No Git commit or source push was performed.
+
+
+## Asynchronous realtime processing deployment — 2026-10-07
+
+PCM receipt now queues ordered inference without waiting for model processing.
+Confirmed text is retained before asynchronous word alignment; CPU VAD and GPU
+alignment run in separate workers. Text, timestamp and speaker states are shown
+separately, and speaker changes no longer force an ASR context reset. Finishing
+keeps GPU admission until queued inference and final alignment complete.
+
+- Source base: `01e99b7d6bb50cbcebad1bf181ef10d7ab670c49` plus reviewed working-tree changes.
+- Program SHA256: `69bda91d2f47bb4ce9e49174c904ae75e049f0eba4bbc94f158cddec8f4ef92d`.
+- Source-manifest SHA256: `f8164bd2966f08d66f782fa7991c6371c747854b94061ac6e09b7fca03a78825`.
+- Thirty realtime Python tests, six original chunk-planner tests, 63 frontend
+  tests, TypeScript checks, API/admission race checks and production builds passed.
+- A 45-second public fixture replayed at recording speed completed on the GPU;
+  maximum observed inference backlog was one second and final drain was about
+  0.26 seconds. This is not a browser microphone or long-meeting accuracy benchmark.
+- Application health is ready and realtime models are available. The frontend
+  asset served through localhost matches the reviewed build by SHA256.
+- Seven existing offline runtime checksums matched. The previous program, actual
+  application launcher, model launcher/unit and realtime source are retained for
+  rollback. Database, recordings and model files were not replaced.
+- Private verification and rollback details are in `.local/validation/`. No Git
+  commit or source push was performed.
+# 实时结束兼容修复部署（2026-10-07）
+
+基于 `01e99b7d6bb50cbcebad1bf181ef10d7ab670c49` 的核对后工作树构建，修复旧页面结束与自动清理的兼容问题，加入页面版本提示及结束草稿隐藏。
+程序 SHA256：`8ab5866cb15bce4a500491d8b928b15e696c10f22199731e6ce5c2f60f2407d0`；源码清单 SHA256：`c0654725e24eef4b1910509e97329280119c622d075565353265fad53cd61dcb`。
+部署前确认没有活动任务，保留实际启动器和旧程序回退；健康检查、版本标识及前端资源校验通过。实际启动器 SHA256：`72d544de7851123034c2a459e2c845f79190c3efc000a4b4182f15668202efe6`。
+本次只更新应用及前端，模型服务继续运行；数据库、录音和模型权重保留。完整部署验证及回退位置记录在私人验证目录的 `finish-fix-deployment.json`。
+
+## 字词局部说话人判定部署（2026-10-07）
+
+基于 `01e99b7d6bb50cbcebad1bf181ef10d7ab670c49` 的核对后实时 Python 工作树更新，修正短区间弱边缘否决高分字词及候选列表跨时间污染的问题。
+说话人源码 SHA256：`1f48824ce79660e2e78a9b4d2eede8b81d839aaee7e6a3e5927c806b25415eff`；部署源码清单 SHA256：`88aeec5ee57727bdad056ecf261e7fd771d4f4e7c21a25c50312eaa7394ba3d4`。
+应用程序继续使用 SHA256 `8ab5866cb15bce4a500491d8b928b15e696c10f22199731e6ce5c2f60f2407d0`；模型启动器 SHA256：`6c5686d0710971f99fca938eac55f7d62a99745fb0cad0b2f96f0f01829f887c`。
+部署前确认无活动任务并保留实际配置、源码及程序回退。生产容器说话人测试和45秒公开音频回放通过，模型就绪与应用健康检查通过。历史结果及录音保留，修复对新实时会话生效；上传链路保持原版。完整部署记录及回退位置在私人验证目录的 `speaker-local-deployment.json`。
+
+## 统一阅读展示与跨片段衔接部署（2026-10-07）
+
+上传与实时转写共用正文分段、空说话人回退和名称提示；空标签可跨 ASR 片段沿用前一位显示说话人，保留明确换人和既有段落长度/停顿规则。页面不显示身份待确认、暂定或待核对提示；原始标签、字词索引与时间戳保留。
+
+最终程序 SHA256：`51368e2f10a9fabb661fea08018566af2911bdbdb0581b9116132f32e2915e2a`；实际启动器 SHA256：`c00945fc34cf155710353c770e0d0a991f24eeeb9ee9be8f49c5f532bbcdaadd`。部署前无活动任务，旧程序与实际启动器已保留用于回退。109 个页面资源、版本标识与应用健康检查通过，模型及七个离线脚本校验保持一致。
+
+62 项前端测试、35 项实时 Python 测试、6 项原切块测试、实时 API/队列竞态检查和生产构建通过。本地浏览器验收确认字词索引唯一、时间戳不变，上传与实时展示一致。完整部署记录及回退位置保留在私人验证目录的 `cross-segment-display-deployment.json`；私人录音、截图、数据库及验证材料不纳入 Git。

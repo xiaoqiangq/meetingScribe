@@ -76,6 +76,8 @@ export interface WordSegment {
     word: string;
     score: number;
     speaker?: string;
+    alignment_status?: 'pending' | 'complete' | 'unavailable';
+    speaker_status?: 'pending' | 'provisional' | 'confirmed';
 }
 
 export interface Transcript {
@@ -86,6 +88,8 @@ export interface Transcript {
         end: number;
         text: string;
         speaker?: string;
+    alignment_status?: 'pending' | 'complete' | 'unavailable';
+    speaker_status?: 'pending' | 'provisional' | 'confirmed';
     }>;
     word_segments?: WordSegment[];
 }

@@ -1,21 +1,23 @@
 """Loopback-only model service. Public authentication belongs to the Go API."""
-import base64
+import asyncio
 import os
 import threading
 
 from fastapi import FastAPI, HTTPException, Request
 from session import ProtocolError, Session
+from processor import Processor
 
 app = FastAPI()
 lock = threading.Lock()
 session = None
 engine = None
 assistant = None
+aligner = None
 
 
 @app.on_event("startup")
 def load_models():
-    global engine, assistant
+    global engine, assistant, aligner
     from qwen_asr import Qwen3ASRModel
     from worker_client import Worker
     engine = Qwen3ASRModel.LLM(
@@ -25,6 +27,7 @@ def load_models():
     )
     try:
         assistant = Worker()
+        aligner = Worker(python=os.environ["REALTIME_ALIGNER_PYTHON"], script="alignment.py", args=("--align-only",))
         warm_models()
     except Exception:
         unload_models()
@@ -40,13 +43,18 @@ def warm_models():
     engine.finish_streaming_transcribe(state)
     assistant.push(bytes(32000))
     assistant.finish()
-    assistant.align(warm_audio, "测试", "Chinese", 0)
+    aligner.align(warm_audio, "测试", "Chinese", 0)
     assistant.reset()
 
 
 @app.on_event("shutdown")
 def unload_models():
-    global assistant, engine
+    global assistant, engine, aligner
+    if session is not None and not session.closed:
+        session.control("cancel")
+    if aligner is not None:
+        aligner.close()
+        aligner = None
     if assistant is not None:
         assistant.close()
         assistant = None
@@ -57,7 +65,7 @@ def unload_models():
 
 @app.get("/status")
 def status():
-    return dict(available=engine is not None, max_sessions=1, max_duration=1800)
+    return dict(available=engine is not None and not (session and session.failed), max_sessions=1, max_duration=1800)
 
 
 @app.post("/sessions")
@@ -66,7 +74,12 @@ def start():
     with lock:
         if session and not session.closed and session.clock() - session.touched < 60:
             raise HTTPException(409, "Another realtime session is active")
-        session = Session(engine, assistant)
+        if session and not session.closed:
+            session.control("cancel")
+        if session and (session.thread.is_alive() or session.failed):
+            # Do not reset shared models while an expired inference is still running.
+            raise HTTPException(409, "Previous session is still shutting down; restart model service after inference failure")
+        session = Processor(Session(engine, assistant, aligner=aligner))
         return session.result()
 
 
@@ -79,39 +92,21 @@ async def update(identifier: str, action: str, request: Request):
         if len(body) > 64000:
             raise HTTPException(413, "PCM chunk too large")
     with lock:
-        if not session or session.id != identifier:
+        current = session
+        if not current or current.id != identifier:
             raise HTTPException(404, "Unknown realtime session")
-        if getattr(session, "failed", False):
-            raise HTTPException(503, "Model inference failed; download the recording and start a new session")
-        try:
-            if action == "chunk":
-                return session.push(int(request.query_params["sequence"]), bytes(body))
-            if action == "finish":
-                return session.finish()
-            if action == "pause":
-                session.commit()
-                session.touched = session.clock()
-                return session.result()
-            if action == "heartbeat":
-                session.touched = session.clock()
-                return session.result()
-            if action == "result":
-                if not session.closed:
-                    raise ProtocolError("Finish before saving")
-                return session.result()
-            if action == "cancel":
-                session.closed = True
-                return dict(cancelled=True)
-            raise ProtocolError("Unknown action")
-        except (ProtocolError, ValueError, KeyError) as exc:
-            raise HTTPException(409, str(exc)) from exc
-        except Exception as exc:
-            # A partially completed model call cannot safely replay its audio.
-            session.closed = True
-            session.failed = True
-            import traceback
-            traceback.print_exc()
-            raise HTTPException(503, "Model inference failed; download the recording and start a new session") from exc
+    try:
+        if action == "chunk":
+            return current.push(int(request.query_params["sequence"]), bytes(body))
+        if action in ("finish", "pause", "cancel"):
+            return await asyncio.to_thread(current.control, action)
+        if action in ("heartbeat", "result"):
+            return current.control(action)
+        raise ProtocolError("Unknown action")
+    except (ProtocolError, ValueError, KeyError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(503, "Model operation failed or timed out; saved audio and text retained") from exc
 
 
 if __name__ == "__main__":

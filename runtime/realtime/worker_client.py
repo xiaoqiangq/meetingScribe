@@ -4,12 +4,13 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import select
 
 
 class Worker:
-    def __init__(self, python=None, script="assistant.py"):
+    def __init__(self, python=None, script="assistant.py", args=()):
         self.process = subprocess.Popen(
-            [python or os.environ["REALTIME_ASSISTANT_PYTHON"], str(Path(__file__).with_name(script))],
+            [python or os.environ["REALTIME_ASSISTANT_PYTHON"], str(Path(__file__).with_name(script)), *args],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1,
         )
         self.call("ready")
@@ -17,6 +18,10 @@ class Worker:
     def call(self, action, **fields):
         self.process.stdin.write(json.dumps(dict(action=action, **fields)) + "\n")
         self.process.stdin.flush()
+        if not select.select([self.process.stdout], [], [], 300 if action == "ready" else 45)[0]:
+            # A late reply must never be mistaken for the next request's reply.
+            self.process.terminate()
+            raise TimeoutError("Realtime model worker timed out")
         line = self.process.stdout.readline()
         if not line:
             raise RuntimeError("Realtime speaker worker stopped")

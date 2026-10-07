@@ -12,6 +12,7 @@ import (
 	"scriberr/internal/queue"
 	"scriberr/internal/repository"
 	"scriberr/internal/service"
+	"strings"
 	"testing"
 	"time"
 )
@@ -127,5 +128,132 @@ func TestRealtimeSessionOwnershipAndRetry(t *testing.T) {
 	}
 	if got := invoke("/sessions/live-id/chunk?sequence=1", 32000); got != 409 {
 		t.Fatalf("finished session accepted audio: %d", got)
+	}
+}
+
+func TestRealtimeBackgroundFinishRetainsAdmissionAndAllowsOwnedPolling(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	finished := false
+	calls := 0
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		if finished {
+			_, _ = w.Write([]byte(`{"finished":true,"text":"final","sequence":2}`))
+		} else {
+			_, _ = w.Write([]byte(`{"finished":false,"text":"confirmed","sequence":1}`))
+		}
+	}))
+	defer backend.Close()
+	t.Setenv("MEETINGSCRIBE_REALTIME_URL", backend.URL)
+	q := queue.NewTaskQueue(1, nil, nil)
+	if !q.ReserveRealtime() {
+		t.Fatal("could not reserve realtime admission")
+	}
+	h := &Handler{taskQueue: q, liveSession: &liveSession{ID: "live-id", Owner: 1, Touched: time.Now()}}
+	owner := uint(1)
+	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("user_id", owner) })
+	router.POST("/sessions/:id/:action", h.UpdateRealtime)
+	invoke := func(action string) int {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest("POST", "/sessions/live-id/"+action+"?async=1", nil))
+		return w.Code
+	}
+	if invoke("finish") != 200 || h.liveSession.Finished {
+		t.Fatal("finish acknowledgement must not mark the project complete")
+	}
+	if q.ReserveRealtime() {
+		t.Fatal("GPU admission released before inference finished")
+	}
+	if invoke("result") != 200 {
+		t.Fatal("owner cannot poll live results")
+	}
+	owner = 2
+	before := calls
+	if invoke("result") != 404 || calls != before {
+		t.Fatal("another owner could poll private results")
+	}
+	owner = 1
+	finished = true
+	if invoke("finish") != 200 || !h.liveSession.Finished {
+		t.Fatal("completed inference did not finalize the project")
+	}
+	if !q.ReserveRealtime() {
+		t.Fatal("GPU admission not released after completion")
+	}
+	before = calls
+	if invoke("result") != 200 || calls != before {
+		t.Fatal("finished polling must return the retained result")
+	}
+}
+
+func TestRealtimeLegacyFinishWaitsAndCleanupCannotMarkFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	calls := 0
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if strings.HasSuffix(r.URL.Path, "/cancel") {
+			t.Error("finish cleanup reached cancel on model service")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if calls == 1 {
+			_, _ = w.Write([]byte(`{"finished":false,"text":"draft checkpoint"}`))
+		} else {
+			_, _ = w.Write([]byte(`{"finished":true,"text":"final checkpoint"}`))
+		}
+	}))
+	defer backend.Close()
+	t.Setenv("MEETINGSCRIBE_REALTIME_URL", backend.URL)
+	q := queue.NewTaskQueue(1, nil, nil)
+	q.ReserveRealtime()
+	h := &Handler{taskQueue: q, liveSession: &liveSession{ID: "live-id", Owner: 1, Touched: time.Now()}}
+	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("user_id", uint(1)) })
+	router.POST("/sessions/:id/:action", h.UpdateRealtime)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest("POST", "/sessions/live-id/finish", nil))
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"finished":true`) || !h.liveSession.Finished {
+		t.Fatalf("legacy client received unfinished result: %s", w.Body.String())
+	}
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest("POST", "/sessions/live-id/cancel", nil))
+	if w.Code != 200 || calls != 2 {
+		t.Fatal("legacy cleanup altered completed session")
+	}
+}
+
+func TestRealtimeCancelAfterAsyncFinishCompletesInsteadOfAbandoning(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	calls := 0
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/cancel") {
+			t.Error("pending finish must not be abandoned")
+		}
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		if calls == 1 {
+			_, _ = w.Write([]byte(`{"finished":false,"text":"checkpoint"}`))
+		} else {
+			_, _ = w.Write([]byte(`{"finished":true,"text":"final"}`))
+		}
+	}))
+	defer backend.Close()
+	t.Setenv("MEETINGSCRIBE_REALTIME_URL", backend.URL)
+	q := queue.NewTaskQueue(1, nil, nil)
+	q.ReserveRealtime()
+	h := &Handler{taskQueue: q, liveSession: &liveSession{ID: "live-id", Owner: 1, Touched: time.Now()}}
+	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("user_id", uint(1)) })
+	router.POST("/sessions/:id/:action", h.UpdateRealtime)
+	for _, action := range []string{"finish?async=1", "cancel"} {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest("POST", "/sessions/live-id/"+action, nil))
+		if w.Code != 200 {
+			t.Fatalf("%s returned %d", action, w.Code)
+		}
+	}
+	if !h.liveSession.Finished || string(h.liveSession.Result) != `{"finished":true,"text":"final"}` {
+		t.Fatal("final snapshot not retained")
 	}
 }

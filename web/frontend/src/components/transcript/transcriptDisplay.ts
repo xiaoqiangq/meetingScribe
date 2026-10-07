@@ -3,6 +3,9 @@ export interface DisplaySegment {
     end: number;
     text: string;
     speaker?: string;
+    alignment_status?: 'pending' | 'complete' | 'unavailable';
+    speaker_status?: 'pending' | 'provisional' | 'confirmed';
+    speaker_uncertain_reason?: string;
 }
 
 export interface DisplayWord {
@@ -11,9 +14,13 @@ export interface DisplayWord {
     word: string;
     score: number;
     speaker?: string;
+    alignment_status?: 'pending' | 'complete' | 'unavailable';
+    speaker_status?: 'pending' | 'provisional' | 'confirmed';
+    speaker_uncertain_reason?: string;
 }
 
 interface DisplayTranscript {
+    realtime?: boolean;
     text: string;
     segments?: DisplaySegment[];
     word_segments?: DisplayWord[];
@@ -40,8 +47,28 @@ export function shouldJoinChunkSentence(previous: DisplaySegment, next: DisplayS
 export function prepareTranscriptForDisplay<T extends DisplayTranscript>(transcript: T): T {
     if (!transcript.segments?.length) return transcript;
 
+    // Upload and realtime results share the same presentation. Original
+    // speaker labels and timestamps remain available for later correction.
     const segments = transcript.segments.map(segment => ({ ...segment }));
     const words = transcript.word_segments?.map(word => ({ ...word }));
+    // Carry reading attribution across ASR boundaries, which are not speaker
+    // turns. Explicit labels still take precedence; never fill from a future
+    // voice. Work only on the display copies, including the no-word fallback.
+    let precedingSpeaker: string | undefined;
+    let wordIndex = 0;
+    for (let index = 0; index < segments.length; index++) {
+        const segment = segments[index];
+        const segmentSpeaker = segment.speaker || precedingSpeaker;
+        if (segmentSpeaker) segment.speaker = segmentSpeaker;
+        let currentSpeaker = segmentSpeaker;
+        const nextStart = segments[index + 1]?.start ?? Infinity;
+        while (words && wordIndex < words.length && words[wordIndex].start < nextStart) {
+            const word = words[wordIndex++];
+            currentSpeaker = word.speaker || currentSpeaker;
+            if (currentSpeaker) word.speaker = currentSpeaker;
+        }
+        precedingSpeaker = currentSpeaker;
+    }
     for (let index = 1; index < segments.length; index++) {
         const previous = segments[index - 1];
         const next = segments[index];

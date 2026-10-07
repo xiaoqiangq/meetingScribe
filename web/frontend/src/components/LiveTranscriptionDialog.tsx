@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { t } from '@/i18n';
 
 interface Segment { start: number; end: number; text: string; speaker?: string | null }
-interface Result { id: string; job_id?:string; saved_duration?:number; text:string; word_segments?: Array<{start:number;end:number;word:string;score:number;speaker?:string}>; sequence: number; duration: number; segments: Segment[]; partial: Segment }
+interface Result { finished?:boolean; revision?:number; error?:string; pending_audio_seconds?:number; metadata?:{pending_alignment?:number}; id: string; job_id?:string; saved_duration?:number; text:string; word_segments?: Array<{start:number;end:number;word:string;score:number;speaker?:string}>; sequence: number; duration: number; segments: Segment[]; partial: Segment }
 
 export function LiveTranscriptionPage() {
   useInterfaceLanguage();
@@ -27,6 +27,7 @@ export function LiveTranscriptionPage() {
   const [error, setError] = useState('');
   const [refineOpen,setRefineOpen] = useState(false);
   const [refineLoading,setRefineLoading] = useState(false);
+  const [outdated, setOutdated] = useState(false);
   const [available, setAvailable] = useState(false);
   const [blob, setBlob] = useState<Blob | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
@@ -58,6 +59,52 @@ export function LiveTranscriptionPage() {
     if (!response.ok) throw new Error(data.error || data.detail || t('Realtime request failed'));
     return data;
   }
+
+  function acceptResult(data: Result) {
+    setResult(previous => previous?.id === data.id && (previous.revision || 0) > (data.revision || 0)
+      ? previous : data);
+  }
+
+  useEffect(() => {
+    let stopped = false;
+    const check = async () => {
+      try {
+        const response = await fetch('/client-version.json', {cache:'no-store', signal:AbortSignal.timeout(5000)});
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!stopped && data.version && import.meta.env.VITE_MEETINGSCRIBE_BUILD_ID) {
+          setOutdated(data.version !== import.meta.env.VITE_MEETINGSCRIBE_BUILD_ID);
+        }
+      } catch { /* A version check failure must not interrupt recording. */ }
+    };
+    void check();
+    const timer = window.setInterval(() => void check(), 15000);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, []);
+
+  // Audio acknowledgements no longer wait for inference. Poll even while paused
+  // so alignment and speaker revisions can arrive without another audio packet.
+  useEffect(() => {
+    if (phase !== 'recording' && phase !== 'paused') return;
+    let stopped = false, inFlight = false;
+    const timer = window.setInterval(async () => {
+      if (stopped || inFlight || failure.current) return;
+      inFlight = true;
+      try {
+        const data = await request(`/sessions/${session.current}/result`, {method:'POST'});
+        if (data.error) throw new Error(data.error);
+        if (!stopped) acceptResult(data);
+      } catch (err) {
+        if (!stopped) {
+          failure.current = true;
+          setError(err instanceof Error ? err.message : String(err));
+          void stopRecording().then(() => setPhase('done'));
+        }
+      } finally { inFlight = false; }
+    }, 1000);
+    return () => { stopped = true; clearInterval(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   function stopTracks() {
     stream.current?.getTracks().forEach(track => track.stop());
@@ -98,7 +145,8 @@ export function LiveTranscriptionPage() {
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const data = await request(`/sessions/${session.current}/chunk?sequence=${current}`, { method: 'POST', body: pcm });
-          if (mounted.current) setResult(data);
+          if (data.error) throw new Error(data.error);
+          if (mounted.current) acceptResult(data);
           return;
         } catch (err) { last = err; }
       }
@@ -218,10 +266,20 @@ export function LiveTranscriptionPage() {
       await stopRecording();
       await queue.current;
       if (failure.current) throw new Error(t('Audio stream interrupted. Download your recording to transcribe it later.'));
-      try {
-        setResult(await request(`/sessions/${session.current}/finish`, { method: 'POST' }));
-      } catch {
-        setResult(await request(`/sessions/${session.current}/finish`, { method: 'POST' }));
+      // Keep the lease alive while queued audio and alignment drain.
+      const deadline = Date.now() + 240000;
+      let completed = false;
+      while (!completed) {
+        let data: Result;
+        try { data = await request(`/sessions/${session.current}/finish?async=1`, {method:'POST'}); }
+        catch { data = await request(`/sessions/${session.current}/finish?async=1`, {method:'POST'}); }
+        if (data.error) throw new Error(data.error);
+        acceptResult(data);
+        completed = data.finished !== false;
+        if (!completed) {
+          if (Date.now() > deadline) throw new Error(t('Final processing timed out. Saved audio and text are retained.'));
+          await new Promise(resolve => window.setTimeout(resolve, 1000));
+        }
       }
     } catch (err) {
       await stopRecording(); setError(String(err instanceof Error ? err.message : err));
@@ -325,12 +383,15 @@ export function LiveTranscriptionPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
           <div>{t('Captured audio')}<strong className="block text-xl tabular-nums">{clock(inputSeconds)}</strong></div>
           <div>{t('Processed audio')}<strong className="block text-xl tabular-nums">{clock(result?.duration || 0)}</strong></div>
-          <div>{t('Confirmed speakers')}<strong className="block text-xl">{speakers.size}</strong></div>
-          <div>{t('Pending audio chunks')}<strong className="block text-xl">{pendingChunks}</strong></div>
+          <div>{t('Detected speakers')}<strong className="block text-xl">{speakers.size}</strong></div>
+          <div>{t('Pending audio chunks')}<strong className="block text-xl">{pendingChunks + Math.ceil(result?.pending_audio_seconds || 0)}</strong></div>
         </div>
+        <p className="text-xs text-muted-foreground">{t('Draft text may change. Confirmed text is retained while timestamps and speaker labels are updated separately.')}</p>
+        {!!result?.metadata?.pending_alignment && <p role="status" className="text-sm text-muted-foreground">{t('Confirmed text · timestamps and speakers pending')}</p>}
+        {outdated && <p role="alert" className="text-amber-700 dark:text-amber-300">{t('A new version is available. Finish recording and download your audio before refreshing. Recording will not be interrupted.')}</p>}
         {error && <p role="alert" className="text-destructive">{error}</p>}
         <div className="flex flex-wrap gap-2">
-          {!busy && <Button disabled={!available || refineLoading} onClick={() => void start()}>{t('Start realtime transcription')}</Button>}
+          {!busy && <Button disabled={!available || refineLoading || outdated} onClick={() => void start()}>{t('Start realtime transcription')}</Button>}
           {phase === 'recording' && <><Button onClick={() => void finish()}>{t('Finish recording')}</Button><Button variant="outline" onClick={() => void pause()}>{t('Pause')}</Button></>}
           {phase === 'paused' && <><Button onClick={() => void resume()}>{t('Resume')}</Button><Button variant="outline" onClick={() => void finish()}>{t('Finish recording')}</Button></>}
           {phase === 'finishing' && <p>{t('Confirming final transcript…')}</p>}
@@ -345,7 +406,7 @@ export function LiveTranscriptionPage() {
       </section>;
   if (jobId) return <AudioDetailView audioId={jobId} liveControls={controls}
       transcriptOverride={result ? normalizeTranscriptResponse({transcript:result}) : undefined}
-      livePartial={result?.partial} liveActive={busy}
+      livePartial={phase === 'done' ? undefined : result?.partial} liveActive={busy}
       playbackSrc={`/api/v1/transcription/${jobId}/audio?live_revision=${playbackRevision}`}
       playbackDisabled={phase === 'starting' || phase === 'recording' || phase === 'finishing'} />;
   return <MainLayout header={<Header />}><div className="space-y-6">

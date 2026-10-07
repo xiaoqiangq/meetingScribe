@@ -25,11 +25,11 @@ class ChunkPolicyTest(unittest.TestCase):
         planner.decide(20,22,{'endpoint':True,'speech_end':21.8})
         self.assertEqual(planner.decide(20,25,{'voiced':False}),'long_silence')
 
-    def test_turn_cut_waits_for_lookahead(self):
+    def test_speaker_change_does_not_cut_asr_context(self):
         planner=StreamingChunkManager()
         self.assertIsNone(planner.decide(0,6,{'voiced':True,'turn':('speaker_1',5)}))
         self.assertIsNone(planner.decide(0,6.5,{'voiced':True,'turn':('speaker_1',5)}))
-        self.assertEqual(planner.decide(0,7,{'voiced':True,'turn':('speaker_1',5)}),'sustained_speaker_change')
+        self.assertIsNone(planner.decide(0,7,{'voiced':True,'turn':('speaker_1',5)}))
 
     def test_session_endpoints_do_not_reset_qwen_every_short_clause(self):
         class Pauses(Assistant):
@@ -55,7 +55,7 @@ class ChunkPolicyTest(unittest.TestCase):
         engine=Engine();s=Session(engine,Turns())
         for i in range(9):s.push(i,b'\x00\x10'*16000)
         final=s.finish()
-        self.assertEqual([(c['end'],c['reason']) for c in final['metadata']['chunk_cuts']],[(6,'sustained_speaker_change'),(9,'audio_end')])
+        self.assertEqual([(c['end'],c['reason']) for c in final['metadata']['chunk_cuts']],[(9,'audio_end')])
         self.assertEqual(engine.fed,9*16000)
 
 if __name__=='__main__':unittest.main()

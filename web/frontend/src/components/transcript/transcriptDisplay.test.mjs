@@ -149,3 +149,84 @@ test('live draft attaches to the ongoing turn and changed speakers remain distin
  assert.equal(shouldAttachRealtimeDraft(last,{start:20,end:21,text:'后来',speaker:'a'}),false);
  assert.equal(shouldAttachRealtimeDraft(last,{start:2,end:2,text:''}),false);
 });
+
+
+test('upload and realtime presentation preserve the same raw labels and word timestamps', () => {
+    const original={text:'这个平台可以使用。',segments:[
+        {start:0,end:1,text:'这个平',speaker:'speaker_0',speaker_status:'provisional'},
+        {start:1,end:1.2,text:'台',speaker:null,speaker_status:'pending'},
+        {start:1.2,end:3,text:'可以使用。',speaker:'speaker_0',speaker_status:'confirmed'},
+    ],word_segments:[
+        {start:0,end:1,word:'这个平',score:1,speaker:'speaker_0'},
+        {start:1,end:1.2,word:'台',score:1,speaker:null},
+        {start:1.2,end:3,word:'可以使用。',score:1,speaker:'speaker_0'},
+    ]};
+    const before=JSON.stringify(original);
+    const upload=prepareTranscriptForDisplay(original);
+    const live=prepareTranscriptForDisplay({...original,realtime:true});
+    assert.deepEqual(live.segments,upload.segments);
+    assert.deepEqual(live.word_segments,upload.word_segments);
+    assert.equal(live.word_segments[1].speaker,'speaker_0');
+    assert.equal(original.word_segments[1].speaker,null);
+    assert.equal(JSON.stringify(original),before);
+});
+
+test('confirmation and alignment states do not split a reading paragraph', () => {
+    const paragraphs=[];
+    const append=(text,start,alignment_status,speaker_status)=>appendReadingParagraph(paragraphs,
+        {text,fullText:text,start,end:start+1,speaker:'speaker_0',alignment_status,speaker_status,
+            offsets:[{startChar:0,endChar:text.length,startTime:start,endTime:start+1,wordIndex:start}]});
+    append('甲',0,'complete','provisional');
+    append('乙',1,'pending','pending');
+    append('丙',2,'complete','confirmed');
+    assert.equal(paragraphs.length,1);
+    assert.equal(paragraphs[0].fullText,'甲乙丙');
+    assert.deepEqual(paragraphs[0].offsets.map(o=>[o.startChar,o.endChar,o.startTime,o.endTime,o.wordIndex]),
+        [[0,1,0,1,0],[1,2,1,2,1],[2,3,2,3,2]]);
+});
+
+
+test('unlabelled ASR fragments follow the preceding voice across boundaries without changing source', () => {
+    const original={text:'麻烦死了。你觉得呢？暂停吧。',segments:[
+        {start:20,end:22.8,text:'麻烦死',speaker:'speaker_0'},
+        {start:22.8,end:22.88,text:'了。',speaker:null},
+        {start:23.44,end:24,text:'你觉得',speaker:'speaker_0'},
+        {start:24,end:24.56,text:'呢？',speaker:null},
+        {start:30,end:35.56,text:'暂停',speaker:'speaker_0'},
+        {start:35.56,end:36.7,text:'吧。',speaker:null},
+    ]};
+    const before=JSON.stringify(original);
+    for(const wordAligned of [false,true]) {
+        const input=wordAligned?{...original,word_segments:original.segments.map(s=>({...s,word:s.text,score:1}))}:original;
+        const shown=prepareTranscriptForDisplay(input);
+        assert.ok(shown.segments.every(s=>s.speaker==='speaker_0'));
+        if(wordAligned) assert.ok(shown.word_segments.every(w=>w.speaker==='speaker_0'));
+        const paragraphs=[];
+        for(const s of shown.segments)appendReadingParagraph(paragraphs,{...s,fullText:s.text,offsets:[]});
+        assert.equal(paragraphs.length,1);
+        assert.equal(paragraphs[0].fullText,original.text);
+        assert.deepEqual(shown.segments.map(s=>[s.start,s.end]),original.segments.map(s=>[s.start,s.end]));
+    }
+    assert.equal(JSON.stringify(original),before);
+});
+
+test('leading unknown stays unnamed, explicit turns win, and a last word voice carries into the next fragment', () => {
+    const input={text:'开头甲乙继续丙后续',segments:[
+        {start:0,end:1,text:'开头',speaker:null},
+        {start:1,end:3,text:'甲乙',speaker:'a'},
+        {start:3,end:4,text:'继续',speaker:null},
+        {start:4,end:5,text:'丙',speaker:'c'},
+        {start:5,end:6,text:'后续',speaker:null},
+    ],word_segments:[
+        {start:0,end:1,word:'开头',speaker:null,score:1},
+        {start:1,end:2,word:'甲',speaker:'a',score:1},
+        {start:2,end:3,word:'乙',speaker:'b',score:1},
+        {start:3,end:4,word:'继续',speaker:null,score:1},
+        {start:4,end:5,word:'丙',speaker:null,score:1},
+        {start:5,end:6,word:'后续',speaker:null,score:1},
+    ]};
+    const shown=prepareTranscriptForDisplay(input);
+    assert.deepEqual(shown.word_segments.map(w=>w.speaker),[null,'a','b','b','c','c']);
+    assert.deepEqual(shown.segments.map(s=>s.speaker),[null,'a','b','c','c']);
+    assert.equal(input.word_segments[3].speaker,null);
+});
