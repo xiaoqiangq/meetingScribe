@@ -47,7 +47,7 @@ Temporary test evidence is retained. Directory cleanup is a manual operation; re
 ## First successful GitHub CI
 
 - Commit: `a51344da8f5a32ddfbd446933786f56cfd5f9bb4`.
-- [CI #1](https://github.com/xiaoqiangq/huiji-p/actions/runs/37198808281): success.
+- [CI #1](https://github.com/xiaoqiangq/meetingScribe/actions/runs/37198808281): success.
 - A clean Ubuntu runner completed npm ci, 23 Python tests, 20 frontend tests/build, Go regression/API checks and application build, Compose validation, Docker build and application artifact upload.
 - GPU inference, external LLM and browser business acceptance were outside that run.
 
@@ -58,5 +58,5 @@ Temporary test evidence is retained. Directory cleanup is a manual operation; re
 - The first local Go attempt could not open an HTTP test listener inside the sandbox. The same tests passed with local-listener permission.
 - The retained deployment report records a 7.85-second synthetic English sample tested with real Qwen and ForcedAligner under explicit-English and auto-detection settings: both returned `en` with 25 word timestamps. Synchronizing source did not repeat GPU inference or alter the service.
 - English-default interface and Chinese switching were browser-checked in that deployment report. Source synchronization did not repeat browser acceptance.
-- [CI #3](https://github.com/xiaoqiangq/huiji-p/actions/runs/37203255936), for commit `b2e3c49e0c3a94a49d5f5f491de7b31983037eb4`, passed tests, application build, Compose validation and Docker build.
+- [CI #3](https://github.com/xiaoqiangq/meetingScribe/actions/runs/37203255936), for commit `b2e3c49e0c3a94a49d5f5f491de7b31983037eb4`, passed tests, application build, Compose validation and Docker build.
 - These checks do not establish all-language quality, full English-meeting accuracy, live streaming or fresh GPU installation acceptance. Later commits have separate CI status.

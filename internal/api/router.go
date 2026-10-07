@@ -98,6 +98,7 @@ func SetupRoutes(handler *Handler, authService *auth.AuthService) *gin.Engine {
 			authProtected.Use(middleware.JWTOnlyMiddleware(authService))
 			{
 				authProtected.GET("/me", handler.CurrentUser)
+				authProtected.GET("/me/usage", handler.CurrentUserUsage)
 				authProtected.POST("/change-password", handler.ChangePassword)
 				authProtected.POST("/change-username", handler.ChangeUsername)
 
@@ -127,6 +128,13 @@ func SetupRoutes(handler *Handler, authService *auth.AuthService) *gin.Engine {
 		}
 
 		// Transcription routes (require authentication)
+		realtime := v1.Group("/realtime")
+		realtime.Use(middleware.JWTOnlyMiddleware(authService))
+		{
+			realtime.GET("/status", handler.RealtimeStatus)
+			realtime.POST("/sessions", handler.StartRealtime)
+			realtime.POST("/sessions/:id/:action", handler.UpdateRealtime)
+		}
 		transcription := v1.Group("/transcription")
 		transcription.Use(middleware.AuthMiddleware(authService), requestLimits(), handler.ResourceAccess())
 		{
@@ -135,6 +143,7 @@ func SetupRoutes(handler *Handler, authService *auth.AuthService) *gin.Engine {
 			uploadRoutes.Use(middleware.NoCompressionMiddleware())
 			{
 				uploadRoutes.POST("/upload", handler.UploadAudio)
+				uploadRoutes.POST("/upload-live", handler.SaveRealtime)
 				uploadRoutes.POST("/upload-video", handler.UploadVideo)
 				uploadRoutes.POST("/upload-multitrack", handler.UploadMultiTrack)
 				uploadRoutes.GET("/:id/audio", handler.GetAudioFile) // Audio streaming shouldn't be compressed

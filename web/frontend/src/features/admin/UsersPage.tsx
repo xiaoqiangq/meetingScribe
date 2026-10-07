@@ -9,6 +9,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+const sizeLabel = (bytes = 0) => bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(2)} GiB` : `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
 export function UsersPage() {
     useInterfaceLanguage();
     const { data: current, isAdmin, isPending } = useCurrentUser();
@@ -19,6 +20,10 @@ export function UsersPage() {
     const [role, setRole] = useState('user');
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
+    const [quotaID, setQuotaID] = useState<number | null>(null);
+    const [projectLimit, setProjectLimit] = useState('0');
+    const [fileQuota, setFileQuota] = useState('0');
+    const [audioQuota, setAudioQuota] = useState('0');
     const [resetID, setResetID] = useState<number | null>(null);
     const [resetPassword, setResetPassword] = useState('');
     const users = useQuery<CurrentUser[]>({ queryKey: ['adminUsers'], enabled: isAdmin, queryFn: async () => {
@@ -26,7 +31,7 @@ export function UsersPage() {
             if (!r.ok)
                 throw new Error(translateUI("\u65E0\u6CD5\u8BFB\u53D6\u8D26\u53F7"));
             return r.json();
-        } });
+        }, refetchInterval: 30000 });
     async function save(path: string, method: string, body: unknown) {
         setBusy(true);
         setError('');
@@ -36,6 +41,7 @@ export function UsersPage() {
             if (!r.ok)
                 throw new Error(data.error || translateUI("\u64CD\u4F5C\u5931\u8D25"));
             await client.invalidateQueries({ queryKey: ['adminUsers'] });
+            await client.invalidateQueries({ queryKey: ['accountUsage'] });
             return true;
         }
         catch (e) {
@@ -61,7 +67,24 @@ export function UsersPage() {
         }}>
  <h2 className="font-semibold">{translateUI("\u65B0\u589E\u8D26\u53F7")}</h2><div className="flex flex-wrap gap-3"><Input className="max-w-xs" aria-label={translateUI("\u65B0\u8D26\u53F7\u7528\u6237\u540D")} placeholder={translateUI("\u7528\u6237\u540D")} value={name} maxLength={50} required onChange={e => setName(e.target.value)}/><Input className="max-w-xs" aria-label={translateUI("\u65B0\u8D26\u53F7\u5BC6\u7801")} placeholder={translateUI("\u5BC6\u7801\uFF08\u81F3\u5C118\u5B57\u8282\uFF09")} type="password" autoComplete="new-password" minLength={8} maxLength={72} required value={password} onChange={e => setPassword(e.target.value)}/><select className="rounded-md border bg-[var(--bg-card)] p-2" aria-label={translateUI("\u65B0\u8D26\u53F7\u89D2\u8272")} value={role} onChange={e => setRole(e.target.value)}><option value="user">{translateUI("\u666E\u901A\u7528\u6237")}</option><option value="admin">{translateUI("\u7BA1\u7406\u5458")}</option></select><Button disabled={busy} type="submit">{translateUI("\u521B\u5EFA\u8D26\u53F7")}</Button></div></form>
  {error && <p role="alert" className="text-red-600">{error}</p>}{users.error && <p role="alert">{translateUI("\u8D26\u53F7\u5217\u8868\u8BFB\u53D6\u5931\u8D25\uFF0C\u8BF7\u5237\u65B0\u91CD\u8BD5\u3002")}</p>}
- <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-3">{translateUI("\u7528\u6237\u540D")}</th><th>{translateUI("\u89D2\u8272")}</th><th>{translateUI("\u72B6\u6001")}</th><th>{translateUI("\u64CD\u4F5C")}</th></tr></thead><tbody>{users.data?.map(user => <tr key={user.id} className="border-b"><td className="p-3">{user.username}{user.id === current?.id ? translateUI("\uFF08\u5F53\u524D\u8D26\u53F7\uFF09") : ''}</td><td>{user.role === 'admin' ? translateUI("\u7BA1\u7406\u5458") : translateUI("\u666E\u901A\u7528\u6237")}</td><td>{user.disabled ? translateUI("\u5DF2\u505C\u7528") : translateUI("\u542F\u7528")}</td><td className="flex flex-wrap gap-2 py-3"><Button variant="outline" disabled={busy || user.id === current?.id} onClick={() => save(`/api/v1/admin/users/${user.id}`, 'PATCH', { disabled: !user.disabled })}>{user.disabled ? translateUI("\u542F\u7528") : translateUI("\u505C\u7528")}</Button><Button variant="outline" disabled={busy || user.id === current?.id} onClick={() => save(`/api/v1/admin/users/${user.id}`, 'PATCH', { role: user.role === 'admin' ? 'user' : 'admin' })}>{user.role === 'admin' ? translateUI("\u8BBE\u4E3A\u666E\u901A\u7528\u6237") : translateUI("\u8BBE\u4E3A\u7BA1\u7406\u5458")}</Button><Button variant="outline" disabled={busy || user.id === current?.id} onClick={() => { setResetID(user.id); setResetPassword(''); setError(''); }}>{translateUI("\u91CD\u7F6E\u5BC6\u7801")}</Button></td></tr>)}</tbody></table></div>
+ <p className="text-xs text-muted-foreground">{translateUI('空间按当前项目的录音、多轨文件和转写结果文件统计；不含共享模型、数据库及未归属的临时文件。录音配额单独计算。每30秒更新。')}</p>
+ <Button variant="outline" onClick={() => void users.refetch()} disabled={users.isFetching}>{translateUI('刷新统计')}</Button>
+ <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-3">{translateUI("\u7528\u6237\u540D")}</th><th>{translateUI("\u89D2\u8272")}</th><th>{translateUI("\u72B6\u6001")}</th><th>{translateUI('项目 / 任务')}</th><th>{translateUI('文件占用')}</th><th>{translateUI('录音配额')}</th><th>{translateUI("\u64CD\u4F5C")}</th></tr></thead><tbody>{users.data?.map(user => <tr key={user.id} className="border-b"><td className="p-3">{user.username}{user.id === current?.id ? translateUI("\uFF08\u5F53\u524D\u8D26\u53F7\uFF09") : ''}</td><td>{user.role === 'admin' ? translateUI("\u7BA1\u7406\u5458") : translateUI("\u666E\u901A\u7528\u6237")}</td><td>{user.disabled ? translateUI("\u5DF2\u505C\u7528") : translateUI("\u542F\u7528")}</td><td className="py-3"><p>{user.project_count ?? '—'} / {user.project_limit || translateUI('不限')}</p><p className="text-xs text-muted-foreground">{translateUI('已完成')} {user.completed_count ?? 0} · {translateUI('进行中')} {user.active_count ?? 0}</p></td><td className="py-3"><p>{user.usage_incomplete ? '≈ ' : ''}{sizeLabel(user.storage_bytes)} / {user.file_quota_bytes ? sizeLabel(user.file_quota_bytes) : translateUI('不限')}</p><p className="text-xs text-muted-foreground">{translateUI('录音')} {sizeLabel(user.audio_bytes)} · {translateUI('其他文件')} {sizeLabel(user.artifact_bytes)}</p></td><td>{sizeLabel(user.audio_bytes)} / {sizeLabel(user.quota_bytes)}</td><td className="flex flex-wrap gap-2 py-3"><Button variant="outline" disabled={busy} onClick={() => { setQuotaID(user.id); setProjectLimit(String(user.project_limit || 0)); setFileQuota(String((user.file_quota_bytes || 0) / 1024 ** 3)); setAudioQuota(String((user.audio_quota_bytes || 0) / 1024 ** 3)); setError(''); }}>{translateUI('设置额度')}</Button><Button variant="outline" disabled={busy || user.id === current?.id} onClick={() => save(`/api/v1/admin/users/${user.id}`, 'PATCH', { disabled: !user.disabled })}>{user.disabled ? translateUI("\u542F\u7528") : translateUI("\u505C\u7528")}</Button><Button variant="outline" disabled={busy || user.id === current?.id} onClick={() => save(`/api/v1/admin/users/${user.id}`, 'PATCH', { role: user.role === 'admin' ? 'user' : 'admin' })}>{user.role === 'admin' ? translateUI("\u8BBE\u4E3A\u666E\u901A\u7528\u6237") : translateUI("\u8BBE\u4E3A\u7BA1\u7406\u5458")}</Button><Button variant="outline" disabled={busy || user.id === current?.id} onClick={() => { setResetID(user.id); setResetPassword(''); setError(''); }}>{translateUI("\u91CD\u7F6E\u5BC6\u7801")}</Button></td></tr>)}</tbody></table></div>
+ {quotaID !== null && <form className="space-y-3 rounded-xl border p-4" onSubmit={async e => {
+     e.preventDefault();
+     const project = Number(projectLimit), files = Number(fileQuota), audio = Number(audioQuota);
+     if (!Number.isSafeInteger(project) || project < 0 || !Number.isFinite(files) || files < 0 || !Number.isFinite(audio) || audio < 0) { setError(translateUI('请输入非负额度')); return; }
+     if (await save(`/api/v1/admin/users/${quotaID}`, 'PATCH', {project_limit:project, file_quota_bytes:Math.round(files * 1024 ** 3), audio_quota_bytes:Math.round(audio * 1024 ** 3)})) setQuotaID(null);
+ }}>
+    <h2 className="font-semibold">{translateUI('设置额度')} · {users.data?.find(u=>u.id===quotaID)?.username}</h2>
+    <p className="text-xs text-muted-foreground">{translateUI('0使用默认值：项目数量和文件空间不限，录音使用系统默认配额。降低额度不删除已有项目，只限制新上传。')}</p>
+    <div className="grid sm:grid-cols-3 gap-3">
+      <label>{translateUI('项目数量上限')}<Input aria-label={translateUI('项目数量上限')} type="number" min="0" step="1" required value={projectLimit} onChange={e=>setProjectLimit(e.target.value)}/></label>
+      <label>{translateUI('文件空间上限（GiB）')}<Input aria-label={translateUI('文件空间上限（GiB）')} type="number" min="0" max="1048576" step="any" required value={fileQuota} onChange={e=>setFileQuota(e.target.value)}/></label>
+      <label>{translateUI('录音配额（GiB）')}<Input aria-label={translateUI('录音配额（GiB）')} type="number" min="0" max="1048576" step="any" required value={audioQuota} onChange={e=>setAudioQuota(e.target.value)}/></label>
+    </div>
+    <div className="flex gap-2"><Button disabled={busy}>{translateUI('保存额度')}</Button><Button type="button" variant="outline" onClick={()=>setQuotaID(null)}>{translateUI('取消')}</Button></div>
+ </form>}
  {resetID !== null && <form className="space-y-3 rounded-xl border p-4" onSubmit={async (e) => {
                 e.preventDefault();
                 if (await save(`/api/v1/admin/users/${resetID}`, 'PATCH', { password: resetPassword })) {

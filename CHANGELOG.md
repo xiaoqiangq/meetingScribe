@@ -2,6 +2,15 @@
 
 [简体中文](CHANGELOG.zh-CN.md)
 
+## v0.1.0-rc.4 — 2026-10-07
+
+- Use MeetingScribe consistently in both interface languages; retain upstream attribution and compatible runtime identifiers.
+- Add microphone realtime transcription with Qwen3-ASR-1.7B/vLLM, continuous Nemotron-3 speaker labels, VAD and final word alignment.
+- Reuse the audio project page for transcript editing, role names, playback, notes and minutes; persist audio and confirmed text continuously.
+- Add incremental Chunk Manager, conservative speaker confirmation and readable paragraphs with inline draft text. Offer optional full-recording reprocessing through saved profiles.
+- Repair unknown microphone recording duration and profile dialog layout; include the verified GPU source baseline, local fonts and account/upload improvements.
+- Validation: 58 frontend tests, 20 realtime Python tests, six original Chunk Manager tests, application builds and a 45-second GPU chunk replay. Fresh GPU installation, reference-scored speaker accuracy and broad browser acceptance remain pending. Pre-release.
+
 ## v0.1.0-rc.3 — 2026-10-06
 
 - Correct the header logo to the exact JPG deployed on GPU1 after v18 verification. The prior rc.2 package still used the older PNG.

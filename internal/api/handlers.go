@@ -15,6 +15,7 @@ import (
 	"scriberr/internal/database"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"scriberr/internal/auth"
@@ -54,6 +55,9 @@ type Handler struct {
 	quickTranscription  *transcription.QuickTranscriptionService
 	multiTrackProcessor *processing.MultiTrackProcessor
 	broadcaster         *sse.Broadcaster
+	liveMu              sync.Mutex
+	liveSession         *liveSession
+	liveFinished        map[string]*liveSession
 }
 
 // NewHandler creates a new handler
@@ -863,7 +867,7 @@ func (h *Handler) GetTranscript(c *gin.Context) {
 	}
 
 	// Return empty transcript gracefully for non-completed jobs
-	if job.Status != models.StatusCompleted {
+	if job.Status != models.StatusCompleted && job.Parameters.Task != "realtime" {
 		c.JSON(http.StatusOK, gin.H{
 			"job_id":     job.ID,
 			"title":      job.Title,
@@ -962,7 +966,11 @@ func (h *Handler) ListTranscriptionJobs(c *gin.Context) {
 		}
 	}
 
-	jobs, total, err := h.jobRepo.ListWithParams(c.Request.Context(), offset, limit, sortBy, sortOrder, searchQuery, updatedAfter)
+	listContext := c.Request.Context()
+	if c.Query("view") == "summary" {
+		listContext = repository.WithLightweightJobList(listContext)
+	}
+	jobs, total, err := h.jobRepo.ListWithParams(listContext, offset, limit, sortBy, sortOrder, searchQuery, updatedAfter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list jobs"})
 		return

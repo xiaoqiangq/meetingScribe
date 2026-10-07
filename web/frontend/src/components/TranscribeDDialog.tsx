@@ -95,17 +95,17 @@ export function TranscribeDDialog({ open, onOpenChange, onStartTranscription, lo
         setSelectedProfileId(value);
     };
     return (<Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md glass-card rounded-[var(--radius-card)] p-0 gap-0 overflow-hidden border border-[var(--border-subtle)] shadow-[var(--shadow-float)]">
+      <DialogContent className="sm:max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto glass-card rounded-[var(--radius-card)] p-0 gap-0 overflow-x-hidden border border-[var(--border-subtle)] shadow-[var(--shadow-float)]">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-            {title || "Transcribe with Profile"}
+            {title || translateUI("Transcribe with Profile")}
           </DialogTitle>
           <DialogDescription className="text-[var(--text-secondary)] text-sm mt-1.5">{translateUI("Choose a saved profile to start transcription with your preferred settings.")}</DialogDescription>
         </DialogHeader>
 
 
 
-        <div className="space-y-4 px-6 py-2">
+        <div className="min-w-0 space-y-4 px-6 py-2">
           <div className="space-y-2">
             <Label htmlFor="profile" className="text-[var(--text-secondary)] font-medium">{translateUI("Select Profile")}</Label>
 
@@ -115,8 +115,8 @@ export function TranscribeDDialog({ open, onOpenChange, onStartTranscription, lo
               </div>) : profiles.length === 0 ? (<div className="p-3 bg-[var(--bg-main)]/50 rounded-[var(--radius-btn)] border border-[var(--border-subtle)]">
                 <span className="text-sm text-[var(--text-secondary)]">{translateUI("No profiles available")}</span>
               </div>) : (<Select value={selectedProfileId} onValueChange={handleProfileChange}>
-                <SelectTrigger className="h-11 rounded-[var(--radius-btn)] bg-[var(--bg-main)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:ring-[var(--brand-light)] focus:border-[var(--brand-solid)] shadow-none">
-                  <SelectValue placeholder={translateUI("Choose a profile...")}/>
+                <SelectTrigger id="profile" className="w-full min-w-0 h-11 rounded-[var(--radius-btn)] bg-[var(--bg-main)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:ring-[var(--brand-light)] focus:border-[var(--brand-solid)] shadow-none">
+                  <SelectValue placeholder={translateUI("Choose a profile...")}>{selectedProfile?.name}</SelectValue>
                 </SelectTrigger>
                 <SelectContent className="glass-card rounded-[var(--radius-btn)] border border-[var(--border-subtle)] shadow-[var(--shadow-float)]">
                   {/* All profiles */}
@@ -135,10 +135,12 @@ export function TranscribeDDialog({ open, onOpenChange, onStartTranscription, lo
               </Select>)}
           </div>
 
+          {selectedProfile?.description && <p className="text-xs text-[var(--text-secondary)] break-words">{selectedProfile.description}</p>}
+
           {selectedProfile?.parameters.model === "Qwen/Qwen3-ASR-1.7B" && <div className="space-y-2">
             <Label>{translateUI("Audio language")}</Label>
             <Select value={spokenLanguage} onValueChange={setSpokenLanguage}>
-              <SelectTrigger aria-label={translateUI("Audio language")}><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" aria-label={translateUI("Audio language")}><SelectValue /></SelectTrigger>
               <SelectContent>{QWEN_LANGUAGE_OPTIONS.map(([value, label]) => <SelectItem key={value} value={value}>{translateUI(label)}</SelectItem>)}</SelectContent>
             </Select>
             <p className="text-xs text-[var(--text-secondary)]">{translateUI("Choose the spoken language. This is independent of the interface language. Timestamp alignment supports the listed languages.")}</p>
@@ -149,7 +151,7 @@ export function TranscribeDDialog({ open, onOpenChange, onStartTranscription, lo
 
         <DialogFooter className="p-6 pt-2 gap-3">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-[var(--radius-btn)] text-[var(--text-secondary)] hover:bg-[var(--secondary)] hover:text-[var(--text-primary)]">{translateUI("Cancel")}</Button>
-          <Button onClick={handleStartTranscription} disabled={loading || !selectedProfileId || profilesLoading || profiles.length === 0} className="min-w-[140px] !bg-[var(--brand-gradient)] hover:!opacity-90 !text-black dark:!text-white border-none shadow-lg shadow-orange-500/20">
+          <Button onClick={handleStartTranscription} disabled={loading || !selectedProfileId || profilesLoading || profiles.length === 0} className="min-w-[140px] bg-gradient-to-br from-[#FFAB40] to-[#FF3D00] hover:!opacity-90 !text-black dark:!text-white border-none shadow-lg shadow-orange-500/20">
             {loading ? (<>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin"/>{translateUI("Starting...")}</>) : (translateUI("Start Transcription"))}
           </Button>

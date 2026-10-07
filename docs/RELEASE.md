@@ -4,7 +4,7 @@
 
 ## 版本与发布门槛
 
-当前为 `Unreleased`。首次候选建议使用 `v0.1.0-rc.1`；完成全新 GPU 环境验收后才发布 `v0.1.0`。版本号描述会记P，不沿用 Scriberr 的原版版本号。
+当前为 `Unreleased`。首次候选建议使用 `v0.1.0-rc.1`；完成全新 GPU 环境验收后才发布 `v0.1.0`。版本号描述MeetingScribe，不沿用 Scriberr 的原版版本号。
 
 - CI 必须在待发布提交上通过：前端测试/构建、Python 桥接测试、所选 Go 回归测试、Compose 配置和 Docker 构建。
 - GPU 验收报告必须记录提交、环境、模型 revision、真实短/长音频结果及峰值资源。
@@ -22,7 +22,7 @@
 
 ## 升级
 
-1. 记录正在运行的会记P版本、commit、模型 revision 及配置。
+1. 记录正在运行的MeetingScribe版本、commit、模型 revision 及配置。
 2. 备份一致性 SQLite、uploads、transcripts、声纹库、JWT secret 和配置；运行中的 SQLite 使用备份接口或一致性快照。
 3. 在新代码目录构建，在独立数据副本和独立端口完成验收；先验证数据迁移。
 4. 停止旧应用，切换到已验收的二进制或镜像，保持持久化目录路径。
@@ -36,3 +36,7 @@
 ## v0.1.0-rc.2 publishing
 
 The VERSION file triggers the release workflow on main. Tests, Compose validation and Docker build must pass before the workflow creates the pre-release tag and uploads the archive/checksums. See [candidate notes](RELEASE-NOTES.md) and [systemd helpers](../deploy/systemd/README.md).
+
+## v0.1.0-rc.4
+
+The VERSION update on main starts verification and candidate packaging. See [current release notes](RELEASE-NOTES.md). Realtime worker environments remain separate; recursive temporary-directory cleanup tests are excluded under workspace rules. Release artifacts are published only after workflow checks pass.

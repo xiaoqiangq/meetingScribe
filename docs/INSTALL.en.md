@@ -13,8 +13,8 @@ Plan for a 16 GB or larger GPU, 32 GB RAM and at least 60 GB disk plus recording
 ```bash
 sudo apt-get update
 sudo apt-get install -y git ffmpeg libsndfile1 build-essential python3.12 python3.12-venv python3-dev
-git clone https://github.com/xiaoqiangq/huiji-p.git
-cd huiji-p
+git clone https://github.com/xiaoqiangq/meetingScribe.git
+cd meetingScribe
 ```
 
 Install Go, Node.js and uv from their official sources. Authenticate your command-line Git for this private repository; browser or connector login does not automatically provide Git credentials.
@@ -176,4 +176,4 @@ The helper scripts are syntax/dry-run checked and the existing A100 runtime is i
 
 ## Containers and release management
 
-[Huiji P Docker entry](DEPLOY.en.md) · [Acceptance status](VALIDATION.en.md) · [Releases and rollback](RELEASE.en.md)
+[MeetingScribe Docker entry](DEPLOY.en.md) · [Acceptance status](VALIDATION.en.md) · [Releases and rollback](RELEASE.en.md)

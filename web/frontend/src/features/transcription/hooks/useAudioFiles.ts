@@ -1,3 +1,4 @@
+import { uploadTransfer } from "./uploadTransfer";
 import { useQuery, useMutation, useQueryClient, keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 
@@ -44,6 +45,7 @@ export function useAudioList(params: AudioListParams) {
             const searchParams = new URLSearchParams({
                 page: params.page.toString(),
                 limit: params.limit.toString(),
+                view: 'summary',
             });
 
             if (params.search) searchParams.set('q', params.search);
@@ -76,6 +78,7 @@ export function useAudioListInfinite(params: Omit<AudioListParams, 'page'>) {
             const searchParams = new URLSearchParams({
                 page: pageParam.toString(),
                 limit: params.limit.toString(),
+                view: 'summary',
             });
 
             if (params.search) searchParams.set('q', params.search);
@@ -110,7 +113,7 @@ export function useAudioUpload() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ file, isVideo, topicBoundaries }: { file: File, isVideo: boolean, topicBoundaries?: number[] }) => {
+        mutationFn: async ({ file, isVideo, topicBoundaries, onProgress }: { file: File, isVideo: boolean, topicBoundaries?: number[], onProgress?: (percent: number) => void }) => {
             const formData = new FormData();
             const fieldName = isVideo ? 'video' : 'audio';
             const endpoint = isVideo ? '/api/v1/transcription/upload-video' : '/api/v1/transcription/upload';
@@ -122,6 +125,9 @@ export function useAudioUpload() {
                 formData.append('topic_boundaries', JSON.stringify(topicBoundaries));
             }
 
+            if (onProgress) {
+                return uploadTransfer(endpoint, formData, getAuthHeaders(), onProgress);
+            }
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: getAuthHeaders(),

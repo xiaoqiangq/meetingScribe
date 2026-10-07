@@ -25,6 +25,6 @@ export function ScriberrIcon({ className = "" }: {
 }) {
     useInterfaceLanguage();
     return (<span className={`${className} inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white dark:bg-white/95`}>
-      <img src={waveformLogo} alt={translateUI("\u4F1A\u8BB0P \u56FE\u6807")} width={1295} height={1214} draggable={false} className="h-full w-full scale-[1.12] object-contain"/>
+      <img src={waveformLogo} alt={translateUI("MeetingScribe icon")} width={1295} height={1214} draggable={false} className="h-full w-full scale-[1.12] object-contain"/>
     </span>);
 }

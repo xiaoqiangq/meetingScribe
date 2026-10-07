@@ -1,5 +1,5 @@
 [Unit]
-Description=Verified Huiji P backup
+Description=Verified MeetingScribe backup
 
 [Service]
 WorkingDirectory=%h/huiji-p

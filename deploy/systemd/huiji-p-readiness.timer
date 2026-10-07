@@ -1,5 +1,5 @@
 [Unit]
-Description=Periodic Huiji P readiness check
+Description=Periodic MeetingScribe readiness check
 
 [Timer]
 OnBootSec=2min

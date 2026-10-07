@@ -1,6 +1,6 @@
-<p align="center"><img src="web/frontend/src/assets/meeting-assistant-waveform.jpg" width="96" alt="会记P logo"></p>
+<p align="center"><img src="web/frontend/src/assets/meeting-assistant-waveform.jpg" width="96" alt="MeetingScribe logo"></p>
 
-# 会记P · Huiji P
+# MeetingScribe
 
 **面向中文会议的自托管语音转写、说话人区分与会议纪要工作台。**
 
@@ -33,7 +33,7 @@
 
 ## 模型带来的优势
 
-| 模型 | 模型优势 | 在会记P中的价值 |
+| 模型 | 模型优势 | 在MeetingScribe中的价值 |
 | --- | --- | --- |
 | **Qwen3-ASR-1.7B** | 官方支持30种语言与22种中文方言/口音，并报告复杂声学条件下的识别能力 | 为中文会议和带地域口音的发言提供转写基础 |
 | **NVIDIA Nemotron-3-Diarization** | 单次最多8人，支持重叠发言活动预测及说话人缓存上下文；约100M参数 | 无需预先登记人物即可生成分人时间轴，结合独立topic适应发言阵容变化 |
@@ -152,8 +152,8 @@ ForcedAligner 字词时间]
 推荐目标是 **Linux + NVIDIA GPU + Python 3.12**。目前实际部署在 A100 上；未宣称 Windows、macOS 或小显存 GPU 的完整链路已经验收。
 
 ```bash
-git clone https://github.com/xiaoqiangq/huiji-p.git
-cd huiji-p
+git clone https://github.com/xiaoqiangq/meetingScribe.git
+cd meetingScribe
 ```
 
 这是私有仓库，先用自己的 GitHub 账号认证。之后按 [逐步安装指南](docs/INSTALL.md) 完成：系统依赖 → 前端/Go 构建 → 独立 Python 环境 → 模型下载 → 运行检查 → 网页启动 → 首次管理员和模型配置。指南提供每一步命令、目录、成功条件和故障处理。
@@ -183,4 +183,8 @@ cd huiji-p
 
 [Docker 部署](docs/DEPLOY.md) · [部署说明](docs/DEPLOY.md) · [验收状态](docs/VALIDATION.md) · [发布策略](docs/RELEASE.md) · [更新日志](CHANGELOG.zh-CN.md)
 
-默认 Compose 已构建会记P源码。当前尚无经过完整从零 GPU 验收的稳定发布；模型环境与权重需另外准备。CI 与 tag workflow 负责自动检查和候选打包，生产部署由管理员确认验收后执行。
+默认 Compose 已构建MeetingScribe源码。当前尚无经过完整从零 GPU 验收的稳定发布；模型环境与权重需另外准备。CI 与 tag workflow 负责自动检查和候选打包，生产部署由管理员确认验收后执行。
+
+## Development / 开发与目录规则
+
+See [development workflow](docs/WORKFLOW.md) and [GPU baseline](docs/BASELINE.md). Private notes and test materials belong in `.local/` and are not uploaded to GitHub.

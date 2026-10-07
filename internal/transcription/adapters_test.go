@@ -64,6 +64,11 @@ func (m *MockJobRepository) UpdateTranscript(ctx context.Context, jobID string, 
 	return args.Error(0)
 }
 
+func (m *MockJobRepository) UpdateRealtime(ctx context.Context, jobID string, transcript string, audioBytes int64, status models.JobStatus, message string) error {
+	args := m.Called(ctx, jobID, transcript, audioBytes, status, message)
+	return args.Error(0)
+}
+
 func (m *MockJobRepository) CreateExecution(ctx context.Context, execution *models.TranscriptionJobExecution) error {
 	args := m.Called(ctx, execution)
 	return args.Error(0)

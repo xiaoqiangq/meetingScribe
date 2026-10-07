@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"os"
+	"scriberr/internal/config"
 	"scriberr/internal/database"
 	"scriberr/internal/models"
 	"strconv"
@@ -89,7 +90,44 @@ func requestLimits() gin.HandlerFunc {
 					return
 				}
 			}
-			remaining := envBytes("USER_STORAGE_QUOTA_BYTES", 20<<30) - used
+			user := models.User{}
+			if database.DB != nil {
+				if err := database.DB.First(&user, owner).Error; err != nil {
+					c.AbortWithStatusJSON(503, gin.H{"error": "Account limits unavailable"})
+					return
+				}
+				if user.ProjectLimit > 0 {
+					var count int64
+					if err := database.DB.Model(&models.TranscriptionJob{}).Where("owner_id = ?", owner).Count(&count).Error; err != nil {
+						c.AbortWithStatusJSON(503, gin.H{"error": "Account limits unavailable"})
+						return
+					}
+					if count >= user.ProjectLimit {
+						c.AbortWithStatusJSON(413, gin.H{"error": "Account project limit reached"})
+						return
+					}
+				}
+				if user.FileQuotaBytes > 0 {
+					dir := os.Getenv("TRANSCRIPTS_DIR")
+					if dir == "" {
+						dir = "data/transcripts"
+					}
+					stats, err := (&Handler{config: &config.Config{TranscriptsDir: dir}}).accountUsage([]models.User{user})
+					if err != nil || stats[owner].UsageIncomplete {
+						c.AbortWithStatusJSON(503, gin.H{"error": "Storage quota check unavailable"})
+						return
+					}
+					available := user.FileQuotaBytes - stats[owner].StorageBytes
+					if available <= 0 {
+						c.AbortWithStatusJSON(413, gin.H{"error": "Account file storage limit reached"})
+						return
+					}
+					if maximum > available {
+						maximum = available
+					}
+				}
+			}
+			remaining := effectiveAudioQuota(user) - used
 			if remaining <= 0 {
 				c.AbortWithStatusJSON(413, gin.H{"error": "Account audio storage quota exceeded"})
 				return

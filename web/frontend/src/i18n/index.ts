@@ -16,7 +16,7 @@ export function t(message: string): string {
 }
 export function getLocale(): string { return getInterfaceLanguage() === 'zh' ? 'zh-CN' : 'en-US'; }
 if (typeof document !== 'undefined') document.documentElement.lang = getInterfaceLanguage() === 'zh' ? 'zh-CN' : 'en';
-if (typeof document !== 'undefined') document.title = getInterfaceLanguage() === 'zh' ? '会记P' : 'Huiji P';
+if (typeof document !== 'undefined') document.title = 'MeetingScribe';
 
 const subscribers = new Set<() => void>();
 export function useInterfaceLanguage() {
@@ -25,7 +25,7 @@ export function useInterfaceLanguage() {
 export function setInterfaceLanguage(language: InterfaceLanguage) {
     localStorage.setItem('huiji-interface-language', language);
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
-    document.title = language === 'zh' ? '会记P' : 'Huiji P';
+    document.title = 'MeetingScribe';
     subscribers.forEach(listener => listener());
 }
 window.addEventListener('storage', event => {if(event.key === 'huiji-interface-language') subscribers.forEach(listener => listener());});

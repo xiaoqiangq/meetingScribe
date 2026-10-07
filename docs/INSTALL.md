@@ -25,8 +25,8 @@
 sudo apt-get update
 sudo apt-get install -y git ffmpeg libsndfile1 build-essential python3.12 python3.12-venv python3-dev
 
-git clone https://github.com/xiaoqiangq/huiji-p.git
-cd huiji-p
+git clone https://github.com/xiaoqiangq/meetingScribe.git
+cd meetingScribe
 ```
 
 另外安装 Go、Node.js 和 uv，使用各自官方渠道。uv 用于上游 WhisperX 的项目环境检测；只安装 Python/pip 不足以让所有适配器初始化。
@@ -167,7 +167,7 @@ cp .env.example .env
 curl --fail http://127.0.0.1:8080/health
 ```
 
-成功条件：`status` 为 `healthy`，浏览器打开 http://127.0.0.1:8080 能看到会记P。`/health` 是网页服务健康，不代表所有模型可用；必须检查日志、模型状态和真实短样本。
+成功条件：`status` 为 `healthy`，浏览器打开 http://127.0.0.1:8080 能看到MeetingScribe。`/health` 是网页服务健康，不代表所有模型可用；必须检查日志、模型状态和真实短样本。
 
 外部访问时配置绑定地址与 ALLOWED_ORIGINS，并用 HTTPS 反向代理及 `SECURE_COOKIES=true`。HTTP 本地测试才使用 false。前台启动适合测试，正式运行可由你自己的 systemd/container 管理；不要拿继承的上游 Docker Compose 当作已包含全部中文模型的部署包。
 
@@ -215,4 +215,4 @@ ffmpeg -nostdin -i your-meeting.wav -ac 1 -ar 16000 local-result-001/input.wav
 
 ## 容器部署与版本管理
 
-[会记P Docker 入口](DEPLOY.md) · [验收状态](VALIDATION.md) · [发布和回退](RELEASE.md)
+[MeetingScribe Docker 入口](DEPLOY.md) · [验收状态](VALIDATION.md) · [发布和回退](RELEASE.md)

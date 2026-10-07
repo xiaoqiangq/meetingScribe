@@ -1,8 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import OpenCC from "opencc-js/t2cn";
-
-const toSimplifiedChinese = OpenCC.Converter({ from: "t", to: "cn" });
+import { normalizeTranscriptResponse } from "./normalizeTranscript";
+export { normalizeTranscriptResponse } from "./normalizeTranscript";
 
 
 // Types
@@ -80,6 +79,7 @@ export interface WordSegment {
 }
 
 export interface Transcript {
+    realtime?: boolean;
     text: string;
     segments?: Array<{
         start: number;
@@ -113,7 +113,7 @@ export function useAudioDetail(audioId: string) {
     });
 }
 
-export function useTranscript(audioId: string, enabled: boolean) {
+export function useTranscript(audioId: string, enabled: boolean, livePolling = false) {
     const { getAuthHeaders } = useAuth();
 
     return useQuery({
@@ -125,47 +125,10 @@ export function useTranscript(audioId: string, enabled: boolean) {
             if (!response.ok) throw new Error("Failed to fetch transcript");
             const data = await response.json();
 
-            // Handle graceful empty responses (available=false)
-            if (data.available === false || !data.transcript) {
-                return null; // Return null to indicate no transcript
-            }
-
-            // Normalize transcript structure
-            if (typeof data.transcript === "string") {
-                return { text: toSimplifiedChinese(data.transcript) } as Transcript;
-            } else if (data.transcript.text) {
-                return {
-                    text: toSimplifiedChinese(data.transcript.text),
-                    segments: data.transcript.segments?.map((segment: NonNullable<Transcript["segments"]>[number]) => ({
-                        ...segment,
-                        text: toSimplifiedChinese(segment.text),
-                    })),
-                    word_segments: data.transcript.word_segments?.map((word: WordSegment) => ({
-                        ...word,
-                        word: toSimplifiedChinese(word.word),
-                    })),
-                } as Transcript;
-            } else if (data.transcript.segments) {
-                const fullText = data.transcript.segments
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    .map((segment: any) => segment.text)
-                    .join(" ");
-                return {
-                    text: toSimplifiedChinese(fullText),
-                    segments: data.transcript.segments.map((segment: NonNullable<Transcript["segments"]>[number]) => ({
-                        ...segment,
-                        text: toSimplifiedChinese(segment.text),
-                    })),
-                    word_segments: data.transcript.word_segments?.map((word: WordSegment) => ({
-                        ...word,
-                        word: toSimplifiedChinese(word.word),
-                    })),
-                } as Transcript;
-            }
-
-            return { text: "" } as Transcript;
+            return normalizeTranscriptResponse(data);
         },
         enabled: enabled,
+        refetchInterval: livePolling ? 3000 : false,
     });
 }
 

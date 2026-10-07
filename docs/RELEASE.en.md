@@ -4,7 +4,7 @@
 
 ## Versioning and release gates
 
-The code remains under `Unreleased` in the changelog. The first candidate version is `v0.1.0-rc.1`; promote to `v0.1.0` only after fresh GPU acceptance. Versions identify Huiji P, rather than inheriting Scriberr's upstream version.
+The code remains under `Unreleased` in the changelog. The first candidate version is `v0.1.0-rc.1`; promote to `v0.1.0` only after fresh GPU acceptance. Versions identify MeetingScribe, rather than inheriting Scriberr's upstream version.
 
 - CI must pass on the candidate commit: frontend tests/build, Python bridge tests, selected Go checks, Compose validation and Docker build.
 - GPU acceptance must record the commit, environment, model revisions, real short/long recording results and peak resources.
@@ -36,3 +36,7 @@ If the database remains compatible, switch back to the previous application. If 
 ## v0.1.0-rc.2 publishing
 
 The VERSION file triggers the release workflow on main. Tests, Compose validation and Docker build must pass before the workflow creates the pre-release tag and uploads the archive/checksums. See [candidate notes](RELEASE-NOTES.md) and [systemd helpers](../deploy/systemd/README.md).
+
+## v0.1.0-rc.4
+
+The VERSION update on main starts verification and candidate packaging. See [current release notes](RELEASE-NOTES.md). Realtime worker environments remain separate; recursive temporary-directory cleanup tests are excluded under workspace rules. Release artifacts are published only after workflow checks pass.

@@ -127,6 +127,15 @@ export function Header({ onFileSelect, onMultiTrackClick, onDownloadComplete }: 
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" className="w-64 glass-card p-2 rounded-[var(--radius-card)] shadow-[var(--shadow-float)] border-[var(--border-subtle)]">
+                            <DropdownMenuItem onClick={() => navigate("/live")} className="group flex items-center gap-3 px-3 py-3 cursor-pointer rounded-[var(--radius-btn)] focus:bg-[var(--brand-light)] focus:text-[var(--brand-solid)] transition-colors">
+                                <div className="p-2 bg-orange-500/10 rounded-[var(--radius-btn)] text-orange-600 group-focus:text-[var(--brand-solid)]">
+                                    <Mic className="h-4 w-4"/>
+                                </div>
+                                <div>
+                                    <div className="font-medium text-sm">{translateUI("Realtime transcription")}</div>
+                                    <div className="text-xs text-[var(--text-secondary)]">{translateUI("Live speech with speaker labels")}</div>
+                                </div>
+                            </DropdownMenuItem>
 							<DropdownMenuItem onClick={handleQuickTranscriptionClick} className="group flex items-center gap-3 px-3 py-3 cursor-pointer rounded-[var(--radius-btn)] focus:bg-[var(--brand-light)] focus:text-[var(--brand-solid)] transition-colors">
 								<div className="p-2 bg-amber-500/10 rounded-[var(--radius-btn)] text-amber-600 group-focus:text-[var(--brand-solid)]">
 									<Zap className="h-4 w-4"/>

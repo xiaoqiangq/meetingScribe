@@ -1,5 +1,5 @@
 [Unit]
-Description=Daily verified Huiji P database backup
+Description=Daily verified MeetingScribe database backup
 
 [Timer]
 OnCalendar=*-*-* 03:30:00

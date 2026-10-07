@@ -29,7 +29,16 @@ func (h *Handler) ListUsers(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Unable to list accounts"})
 		return
 	}
-	c.JSON(200, users)
+	stats, err := h.accountUsage(users)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Unable to read account usage"})
+		return
+	}
+	result := make([]AccountWithUsage, 0, len(users))
+	for _, user := range users {
+		result = append(result, AccountWithUsage{User: user, AccountUsage: stats[user.ID]})
+	}
+	c.JSON(200, result)
 }
 func validAccount(name, password string) bool {
 	return strings.TrimSpace(name) == name && utf8.RuneCountInString(name) >= 1 && utf8.RuneCountInString(name) <= 50 && !strings.ContainsAny(name, "\r\n\x00") && len(password) >= 8 && len(password) <= 72
@@ -65,13 +74,22 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Role     *string `json:"role"`
-		Disabled *bool   `json:"disabled"`
-		Password *string `json:"password"`
+		Role            *string `json:"role"`
+		Disabled        *bool   `json:"disabled"`
+		Password        *string `json:"password"`
+		ProjectLimit    *int64  `json:"project_limit"`
+		FileQuotaBytes  *int64  `json:"file_quota_bytes"`
+		AudioQuotaBytes *int64  `json:"audio_quota_bytes"`
 	}
 	if c.ShouldBindJSON(&req) != nil || (req.Role != nil && *req.Role != "user" && *req.Role != "admin") || (req.Password != nil && (len(*req.Password) < 8 || len(*req.Password) > 72)) {
 		c.JSON(400, gin.H{"error": "Invalid account settings; password must be 8–72 bytes"})
 		return
+	}
+	for _, limit := range []*int64{req.ProjectLimit, req.FileQuotaBytes, req.AudioQuotaBytes} {
+		if limit != nil && (*limit < 0 || *limit > (1<<50)) {
+			c.JSON(400, gin.H{"error": "Limits must be nonnegative integers"})
+			return
+		}
 	}
 	accountMutation.Lock()
 	defer accountMutation.Unlock()
@@ -100,6 +118,16 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 				return &accountError{"必须保留至少一个启用的管理员"}
 			}
 		}
+		securityChanged := result.Role != role || result.Disabled != disabled || req.Password != nil
+		if req.ProjectLimit != nil {
+			result.ProjectLimit = *req.ProjectLimit
+		}
+		if req.FileQuotaBytes != nil {
+			result.FileQuotaBytes = *req.FileQuotaBytes
+		}
+		if req.AudioQuotaBytes != nil {
+			result.AudioQuotaBytes = *req.AudioQuotaBytes
+		}
 		result.Role = role
 		result.Disabled = disabled
 		if req.Password != nil {
@@ -109,7 +137,9 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 			}
 			result.Password = hash
 		}
-		result.TokenVersion++
+		if securityChanged {
+			result.TokenVersion++
+		}
 		if err := tx.Save(&result).Error; err != nil {
 			return err
 		}
@@ -117,6 +147,9 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 			if err := tx.Model(&models.APIKey{}).Where("owner_id = ?", result.ID).Update("is_active", false).Error; err != nil {
 				return err
 			}
+		}
+		if !securityChanged {
+			return nil
 		}
 		return tx.Model(&models.RefreshToken{}).Where("user_id = ?", result.ID).Update("revoked", true).Error
 	})

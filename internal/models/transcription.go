@@ -168,6 +168,9 @@ func (tj *TranscriptionJob) BeforeCreate(tx *gorm.DB) error {
 
 // User represents a user for authentication
 type User struct {
+	ProjectLimit             int64     `json:"project_limit" gorm:"not null;default:0"`
+	FileQuotaBytes           int64     `json:"file_quota_bytes" gorm:"not null;default:0"`
+	AudioQuotaBytes          int64     `json:"audio_quota_bytes" gorm:"not null;default:0"`
 	Role                     string    `json:"role" gorm:"type:varchar(16)"`
 	Disabled                 bool      `json:"disabled" gorm:"not null;default:false"`
 	TokenVersion             uint      `json:"-" gorm:"not null;default:0"`

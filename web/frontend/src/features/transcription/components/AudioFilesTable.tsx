@@ -1,3 +1,4 @@
+import { AccountUsage } from "@/features/settings/components/AccountUsage";
 import { t as translateUI } from "@/i18n";
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from "react";
 import { useInView } from "react-intersection-observer";
@@ -639,8 +640,9 @@ export const AudioFilesTable = memo(function AudioFilesTable({ onTranscribe, }: 
     // RENDER: Floating Row List (Premium UI)
     return (<div className="space-y-6">
 			{/* Toolbar */}
-			<div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-				<DebouncedSearchInput placeholder={translateUI("Search recordings...")} value={globalFilter ?? ""} onChange={(value) => setGlobalFilter(String(value))} className="w-full sm:w-80 shadow-sm border-transparent focus:border-[var(--brand-solid)] bg-white dark:bg-zinc-900"/>
+			<div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+				<DebouncedSearchInput placeholder={translateUI("Search recordings...")} value={globalFilter ?? ""} onChange={(value) => setGlobalFilter(String(value))} className="w-full md:w-56 lg:w-80 md:shrink-0 shadow-sm border-transparent focus:border-[var(--brand-solid)] bg-white dark:bg-zinc-900"/>
+                <AccountUsage compact />
 			</div>
 
 			{/* List Container */}

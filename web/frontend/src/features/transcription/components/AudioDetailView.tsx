@@ -1,6 +1,6 @@
 import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
-import { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { useRef, useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { MoreVertical, Edit2, Activity, FileText, Bot, Check, Loader2, List, AlignLeft, ArrowDownCircle, StickyNote, MessageCircle, FileImage, FileJson, Clock, AlertCircle, Users } from "lucide-react";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { EmberPlayer, type EmberPlayerRef } from "@/components/audio/EmberPlayer";
 import { cn } from "@/lib/utils";
 // Custom Hooks
-import { useAudioDetail, useUpdateTitle, useTranscript } from "@/features/transcription/hooks/useAudioDetail";
+import { useAudioDetail, useUpdateTitle, useTranscript, type Transcript } from "@/features/transcription/hooks/useAudioDetail";
 import { useSpeakerMappings } from "@/features/transcription/hooks/useTranscriptionSpeakers";
 import { useTranscriptDownload } from "@/features/transcription/hooks/useTranscriptDownload";
 // Sub-components
@@ -24,9 +24,15 @@ import { ChatSidePanel } from "./ChatSidePanel";
 import { useIsMobile } from "@/hooks/use-mobile";
 // Types
 interface AudioDetailViewProps {
-    audioId?: string; // Optional prop if used as a controlled component, though mainly route-based
+    audioId?: string;
+    liveControls?: ReactNode;
+    transcriptOverride?: Transcript | null;
+    livePartial?: {text:string;start:number;end:number;speaker?:string|null};
+    liveActive?: boolean;
+    playbackSrc?: string;
+    playbackDisabled?: boolean;
 }
-export const AudioDetailView = function AudioDetailView({ audioId: propAudioId }: AudioDetailViewProps) {
+export const AudioDetailView = function AudioDetailView({ audioId: propAudioId, liveControls, transcriptOverride, livePartial, liveActive = false, playbackSrc, playbackDisabled = false }: AudioDetailViewProps) {
     useInterfaceLanguage();
     const { audioId: paramAudioId } = useParams<{
         audioId: string;
@@ -53,9 +59,11 @@ export const AudioDetailView = function AudioDetailView({ audioId: propAudioId }
     const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
     // Data Fetching
     const { data: audioFile, isLoading, error } = useAudioDetail(audioId || "");
+    const recordingInProgress = liveActive || (audioFile?.status === "processing" && audioFile.parameters?.task === "realtime");
     const { mutate: updateTitle } = useUpdateTitle(audioId || "");
     // Fetch transcript & speakers here to support menu actions
-    const { data: transcript } = useTranscript(audioId || "", true);
+    const { data: fetchedTranscript } = useTranscript(audioId || "", true, recordingInProgress && transcriptOverride === undefined);
+    const transcript = transcriptOverride !== undefined ? transcriptOverride : fetchedTranscript;
     const { data: speakerMappings = {} } = useSpeakerMappings(audioId || "", true);
     const speakerIds = useMemo(() => {
         const ids = new Set<string>();
@@ -127,6 +135,7 @@ export const AudioDetailView = function AudioDetailView({ audioId: propAudioId }
         setIsEditingTitle(false);
     };
     const handleSeek = (time: number) => {
+        if (playbackDisabled) return;
         if (audioPlayerRef.current) {
             audioPlayerRef.current.seekTo(time);
             setCurrentTime(time);
@@ -182,7 +191,7 @@ export const AudioDetailView = function AudioDetailView({ audioId: propAudioId }
                     <div className="flex-1 overflow-y-auto scrollbar-thin">
                         <div className="mx-auto w-full max-w-[960px] px-4 sm:px-6 py-6 pb-32">
                             <div className="mb-6 pb-6">
-                                <Header />
+                                {liveActive ? <div className="glass rounded-xl px-6 py-4 font-semibold">MeetingScribe · {translateUI("Realtime transcription")}</div> : <Header />}
                             </div>
                             <div className="space-y-6 sm:space-y-8">
                                 {/* Title & Metadata */}
@@ -251,10 +260,10 @@ export const AudioDetailView = function AudioDetailView({ audioId: propAudioId }
                                         {/* Action Menu */}
                                         {/* ... keeping existing Logic but updating Chat action ... */}
                                         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                                            <Button variant="outline" size="sm" onClick={() => setSummaryDialogOpen(true)} className="rounded-full border-[var(--brand-solid)] text-[var(--brand-solid)] shadow-sm bg-[var(--bg-card)] hover:bg-[var(--brand-light)] transition-all gap-2 px-3">
+                                            <Button variant="outline" size="sm" disabled={recordingInProgress} onClick={() => setSummaryDialogOpen(true)} className="rounded-full border-[var(--brand-solid)] text-[var(--brand-solid)] shadow-sm bg-[var(--bg-card)] hover:bg-[var(--brand-light)] transition-all gap-2 px-3">
                                                 <Bot className="h-4 w-4"/>{translateUI("\u4F1A\u8BAE\u7EAA\u8981")}</Button>
                                             {/* Quick Chat Button */}
-                                            <Button variant="outline" size="sm" onClick={() => setChatOpen(!chatOpen)} className={cn("rounded-full border-[var(--border-subtle)] shadow-sm bg-[var(--bg-card)] hover:bg-[var(--bg-main)] transition-all gap-2 px-3", chatOpen && "border-[var(--brand-solid)] text-[var(--brand-solid)]")}>
+                                            <Button variant="outline" size="sm" disabled={recordingInProgress} onClick={() => setChatOpen(!chatOpen)} className={cn("rounded-full border-[var(--border-subtle)] shadow-sm bg-[var(--bg-card)] hover:bg-[var(--bg-main)] transition-all gap-2 px-3", chatOpen && "border-[var(--brand-solid)] text-[var(--brand-solid)]")}>
                                                 <MessageCircle className="h-4 w-4"/>
                                                 <span className="hidden sm:inline">{translateUI("Chat")}</span>
                                             </Button>
@@ -277,7 +286,7 @@ export const AudioDetailView = function AudioDetailView({ audioId: propAudioId }
                                                     <DropdownMenuItem onClick={() => handleSetNotesOpen(!notesOpen)} className="rounded-[8px] cursor-pointer">
                                                         <StickyNote className={cn("mr-2 h-4 w-4 opacity-70", notesOpen && "text-[var(--brand-solid)]")}/>{translateUI("Notes")}</DropdownMenuItem>
                                                     <DropdownMenuSeparator className="bg-[var(--border-subtle)] my-1"/>
-                                                    <DropdownMenuItem onClick={() => handleSetChatOpen(!chatOpen)} className="rounded-[8px] cursor-pointer">
+                                                    <DropdownMenuItem disabled={recordingInProgress} onClick={() => handleSetChatOpen(!chatOpen)} className="rounded-[8px] cursor-pointer">
                                                         <MessageCircle className={cn("mr-2 h-4 w-4 opacity-70", chatOpen && "text-[var(--brand-solid)]")}/>{translateUI("Chat with Audio")}</DropdownMenuItem>
                                                     {/* ... Rest of menu items ... */}
                                                     <DropdownMenuSeparator className="bg-[var(--border-subtle)] my-1"/>
@@ -298,13 +307,15 @@ export const AudioDetailView = function AudioDetailView({ audioId: propAudioId }
                                     </div>
                                 </div>
 
+                                {liveControls}
+
                                 {/* Audio Player */}
                                 <div className="sticky top-0 z-10 glass-card rounded-[var(--radius-card)] border-[var(--border-subtle)] shadow-[var(--shadow-card)] p-4 md:p-6 mb-8 transition-all duration-300 hover:shadow-[var(--shadow-float)]">
-                                    <EmberPlayer ref={audioPlayerRef} audioId={audioId} onTimeUpdate={handleTimeUpdate} onPlayStateChange={setIsPlaying}/>
+                                    <EmberPlayer ref={audioPlayerRef} audioId={audioId} src={playbackSrc} disabled={playbackDisabled} onTimeUpdate={handleTimeUpdate} onPlayStateChange={setIsPlaying}/>
                                 </div>
 
                                 {/* Transcript */}
-                                <TranscriptSectionWrapper audioId={audioId} currentTime={currentTime} onSeek={handleSeek} transcript={transcript} speakerMappings={speakerMappings} transcriptMode={transcriptMode} autoScrollEnabled={autoScrollEnabled} notesOpen={notesOpen} setNotesOpen={handleSetNotesOpen} speakerRenameOpen={speakerRenameOpen} setSpeakerRenameOpen={setSpeakerRenameOpen} downloadDialogOpen={downloadDialogOpen} setDownloadDialogOpen={setDownloadDialogOpen} downloadFormat={downloadFormat} isPlaying={isPlaying}/>
+                                <TranscriptSectionWrapper livePartial={livePartial} audioId={audioId} currentTime={currentTime} onSeek={handleSeek} transcript={transcript} speakerMappings={speakerMappings} transcriptMode={transcriptMode} autoScrollEnabled={autoScrollEnabled} notesOpen={notesOpen} setNotesOpen={handleSetNotesOpen} speakerRenameOpen={speakerRenameOpen} setSpeakerRenameOpen={setSpeakerRenameOpen} downloadDialogOpen={downloadDialogOpen} setDownloadDialogOpen={setDownloadDialogOpen} downloadFormat={downloadFormat} isPlaying={isPlaying}/>
                             </div>
                         </div>
                     </div>

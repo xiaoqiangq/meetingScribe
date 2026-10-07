@@ -1,6 +1,8 @@
+import { selectTopicLinks, type TopicLink } from "./topicLinks";
+import { playSpeakerPreview } from "./speakerPreview";
 import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,13 +50,21 @@ interface SpeakerRenameDialogProps {
     onSpeakerMappingsUpdate: (mappings: SpeakerMapping[]) => void;
     initialSpeakers?: string[]; // Detected speakers from transcript
 }
-const SpeakerRenameDialog: React.FC<SpeakerRenameDialogProps> = ({ open, onOpenChange, transcriptionId, onSpeakerMappingsUpdate, initialSpeakers = [], }) => {
+const SpeakerRenameDialog: React.FC<SpeakerRenameDialogProps> = ({ open, onOpenChange, transcriptionId, onSpeakerMappingsUpdate, initialSpeakers: suppliedSpeakers = [], }) => {
     useInterfaceLanguage();
+    // Parent audio updates create new arrays; reload only when speaker values change.
+    const speakerKey = JSON.stringify(suppliedSpeakers);
+    const initialSpeakers = useMemo<string[]>(() => JSON.parse(speakerKey), [speakerKey]);
     const { getAuthHeaders } = useAuth();
     const [speakerMappings, setSpeakerMappings] = useState<Record<string, string>>({});
     const [personIds, setPersonIds] = useState<Record<string, string>>({});
     const [recommendations, setRecommendations] = useState<TopicRecommendations>();
     const [previewUrl, setPreviewUrl] = useState<string>();
+    const [previewWindow, setPreviewWindow] = useState<{ start: number; end: number }>();
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const previewRequest = useRef(0);
+    const fallbackStarted = useRef(false);
+    const [linkMinimum, setLinkMinimum] = useState(0.5);
     const audioRef = useRef<HTMLAudioElement>(null);
     const previewEnd = useRef<number | undefined>(undefined);
     const [isLoading, setIsLoading] = useState(false);
@@ -166,32 +176,67 @@ const SpeakerRenameDialog: React.FC<SpeakerRenameDialogProps> = ({ open, onOpenC
         }
     };
     useEffect(() => () => {
-        if (previewUrl)
+        if (previewUrl?.startsWith('blob:'))
             URL.revokeObjectURL(previewUrl);
     }, [previewUrl]);
-    const listen = async (window: {
-        start: number;
-        end: number;
-    }) => {
-        try {
-            let url = previewUrl;
-            if (!url) {
-                const response = await fetch(`/api/v1/transcription/${transcriptionId}/audio`, { headers: getAuthHeaders() });
-                if (!response.ok)
-                    throw new Error(translateUI("\u65E0\u6CD5\u8BFB\u53D6\u97F3\u9891"));
-                url = URL.createObjectURL(await response.blob());
-                setPreviewUrl(url);
-            }
-            const audio = audioRef.current;
-            if (!audio)
-                return;
-            audio.src = url;
-            previewEnd.current = window.end;
-            audio.onloadedmetadata = () => { audio.currentTime = window.start; void audio.play().catch(() => setError(translateUI("\u8BF7\u70B9\u51FB\u64AD\u653E\u5668\u64AD\u653E"))); };
-            audio.load();
+    useEffect(() => {
+        previewRequest.current += 1;
+        if (!open) {
+            fallbackStarted.current = false;
+            audioRef.current?.pause();
+            previewEnd.current = undefined;
+            setPreviewWindow(undefined);
+            setPreviewLoading(false);
         }
-        catch (err) {
-            setError(err instanceof Error ? translateUI(err.message) : translateUI("\u8BD5\u542C\u5931\u8D25"));
+    }, [open]);
+    useEffect(() => {
+        setPreviewUrl(undefined);
+        fallbackStarted.current = false;
+        setPreviewWindow(undefined);
+        previewRequest.current += 1;
+    }, [transcriptionId]);
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!open || !audio || !previewUrl || !previewWindow) return;
+        return playSpeakerPreview(audio, previewWindow, {
+            started: () => setPreviewLoading(false),
+            failed: (message) => {
+                setPreviewLoading(false);
+                setError(translateUI(message));
+            },
+            setEnd: end => { previewEnd.current = end; },
+        });
+    }, [open, previewUrl, previewWindow]);
+    const pauseProjectAudio = () => window.dispatchEvent(new Event('huiji:preview-start'));
+    const listen = (window: { start: number; end: number }) => {
+        previewRequest.current += 1;
+        setPreviewLoading(true);
+        setError(null);
+        pauseProjectAudio();
+        audioRef.current?.pause();
+        // The server supports byte ranges, as used by the project player.
+        if (!previewUrl) setPreviewUrl(`/api/v1/transcription/${transcriptionId}/audio`);
+        setPreviewWindow({ ...window });
+    };
+    const recoverAudio = async () => {
+        if (fallbackStarted.current) return;
+        fallbackStarted.current = true;
+        const request = previewRequest.current;
+        setPreviewLoading(true);
+        setError(null);
+        try {
+            const response = await fetch(`/api/v1/transcription/${transcriptionId}/audio`, {
+                headers: getAuthHeaders(), credentials: 'include',
+            });
+            if (!response.ok) throw new Error(translateUI('无法读取音频'));
+            const blob = await response.blob();
+            if (request !== previewRequest.current) return;
+            setPreviewUrl(URL.createObjectURL(blob));
+        } catch (err) {
+            if (request === previewRequest.current) {
+                setPreviewLoading(false);
+                setError(err instanceof Error ? translateUI(err.message) : translateUI('试听失败'));
+            }
         }
     };
     const confirmName = (speaker: string, candidate: TopicCandidate) => {
@@ -212,9 +257,16 @@ const SpeakerRenameDialog: React.FC<SpeakerRenameDialogProps> = ({ open, onOpenC
         setPersonIds(prev => { const next = { ...prev }; members.forEach(s => { next[s] = id; }); return next; });
         setSpeakerMappings(prev => { const next = { ...prev }; members.forEach(s => { next[s] = prev[left]; }); return next; });
     };
+    const links = selectTopicLinks(recommendations?.links || [], personIds, linkMinimum);
+    const renderLink = (link: TopicLink, confirmed = false) => <div key={JSON.stringify([link.left, link.right].sort())} className="text-xs flex items-center gap-2 flex-wrap rounded border p-2">
+        <span>{link.left} ↔ {link.right} · {translateUI('相似度：')}{link.cosine.toFixed(2)}</span>
+        <Button size="sm" variant="outline" disabled={!recommendations?.speakers.find(s => s.speaker === link.left)?.windows.length} onClick={() => { const w = recommendations?.speakers.find(s => s.speaker === link.left)?.windows[0]; if (w) listen(w); }}>{translateUI('试听左侧')}</Button>
+        <Button size="sm" variant="outline" disabled={!recommendations?.speakers.find(s => s.speaker === link.right)?.windows.length} onClick={() => { const w = recommendations?.speakers.find(s => s.speaker === link.right)?.windows[0]; if (w) listen(w); }}>{translateUI('试听右侧')}</Button>
+        {confirmed ? <span>{translateUI('已关联（点击保存后生效）')}</span> : <Button size="sm" variant="outline" onClick={() => linkPeople(link.left, link.right)}>{translateUI('确认同一人')}</Button>}
+    </div>;
     const speakers = initialSpeakers.filter(speaker => speaker in speakerMappings);
     return (<Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5"/>
@@ -253,17 +305,28 @@ const SpeakerRenameDialog: React.FC<SpeakerRenameDialogProps> = ({ open, onOpenC
 
         {recommendations && <div className="space-y-2 border-t pt-2">
           <p className="text-xs text-muted-foreground">{recommendations.notice}{translateUI("\u4FEE\u6539\u540E\u70B9\u51FB\u4FDD\u5B58\u624D\u751F\u6548\u3002\u540C\u4E00\u4EBA\u7269\u5173\u8054\u7684\u59D3\u540D\u4F1A\u4E00\u8D77\u66F4\u65B0\u3002")}</p>
-          <audio ref={audioRef} controls className="w-full h-10" onTimeUpdate={() => {
+          {previewLoading && <p role="status" className="text-xs text-muted-foreground">{translateUI("Loading audio...")}</p>}
+          <audio ref={audioRef} src={previewUrl} preload="metadata" crossOrigin="use-credentials" onPlay={pauseProjectAudio} onError={() => void recoverAudio()} controls className="w-full h-10" onTimeUpdate={() => {
                 if (audioRef.current && previewEnd.current !== undefined && audioRef.current.currentTime >= previewEnd.current)
                     audioRef.current.pause();
             }}/>
-          {recommendations.links.length > 0 && <details><summary className="cursor-pointer text-sm">{translateUI("\u8DE8 topic \u4EBA\u7269\u8054\u7CFB\uFF08")}{recommendations.links.length}{translateUI("\u6761\uFF09")}</summary>
-            <div className="max-h-40 overflow-y-auto space-y-2">{recommendations.links.map(link => <div key={link.left + link.right} className="text-xs flex items-center gap-2 flex-wrap">
-              <span>{link.left} ↔ {link.right}（{link.cosine.toFixed(2)}）</span>
-              <Button size="sm" variant="outline" onClick={() => linkPeople(link.left, link.right)}>{translateUI("\u786E\u8BA4\u540C\u4E00\u4EBA")}</Button>
-              {personIds[link.left] && personIds[link.left] === personIds[link.right] && <span>{translateUI("\u5DF2\u5173\u8054\uFF0C\u5F85\u4FDD\u5B58")}</span>}
-            </div>)}</div>
-          </details>}
+          {recommendations.links.length > 0 && <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">{translateUI('跨 topic 高分候选')}（{links.recommended.length}）</p>
+              <label className="text-xs flex items-center gap-1">{translateUI('最低相似度')}
+                <select aria-label={translateUI('最低相似度')} className="rounded border bg-background p-1" value={linkMinimum} onChange={e => setLinkMinimum(Number(e.target.value))}>
+                  {[0.4, 0.5, 0.6, 0.7].map(value => <option key={value} value={value}>{value.toFixed(1)}</option>)}
+                </select>
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground">{translateUI('每个人最多推荐两条联系；分数不是正确概率，请试听后确认。')}</p>
+            <div className="max-h-40 overflow-y-auto space-y-2">
+              {links.recommended.map(link => renderLink(link))}
+              {!links.recommended.length && <p className="text-xs text-muted-foreground">{translateUI('暂无符合门槛的候选，可调整门槛或查看其他联系。')}</p>}
+            </div>
+            {links.confirmed.length > 0 && <details><summary className="cursor-pointer text-sm">{translateUI('已关联人物')}（{links.confirmed.length}）</summary><div className="max-h-40 overflow-y-auto space-y-2">{links.confirmed.map(link => renderLink(link, true))}</div></details>}
+            {links.other.length > 0 && <details><summary className="cursor-pointer text-sm">{translateUI('查看其他联系')}（{links.other.length}）</summary><div className="max-h-40 overflow-y-auto space-y-2">{links.other.map(link => renderLink(link))}</div></details>}
+          </div>}
         </div>}
 
         <DialogFooter className="gap-2">

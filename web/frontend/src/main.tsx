@@ -1,6 +1,7 @@
 import { LanguageSwitcher } from './i18n/LanguageSwitcher'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import './fonts.css'
 import './index.css'
 import 'katex/dist/katex.min.css'
 import 'highlight.js/styles/github-dark-dimmed.css'

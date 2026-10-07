@@ -1,6 +1,6 @@
-<p align="center"><img src="web/frontend/src/assets/meeting-assistant-waveform.jpg" width="96" alt="Huiji P logo"></p>
+<p align="center"><img src="web/frontend/src/assets/meeting-assistant-waveform.jpg" width="96" alt="MeetingScribe logo"></p>
 
-# Huiji P · 会记P
+# MeetingScribe
 
 **A self-hosted workspace for Chinese meeting transcription, speaker diarization and meeting minutes.**
 
@@ -21,7 +21,7 @@ Built on [Scriberr](https://github.com/rishikanthc/Scriberr). Speech recognition
 | Meeting minutes | Selectable templates, sourced / clean views and generation history |
 | Multiple users | Owner-based recording and minutes access; administrator account management |
 
-## Why Huiji P
+## Why MeetingScribe
 
 - **Complementary meeting models**: ASR, diarization and alignment support timed transcript review.
 - **Structure-aware chunks**: Silence and speaker intervals guide cuts; context padding and core ownership preserve continuity and remove duplicates.
@@ -33,7 +33,7 @@ Built on [Scriberr](https://github.com/rishikanthc/Scriberr). Speech recognition
 
 ## Model strengths behind the workflow
 
-| Model | Strengths | Value in Huiji P |
+| Model | Strengths | Value in MeetingScribe |
 | --- | --- | --- |
 | **Qwen3-ASR-1.7B** | Broad language coverage: 30 languages and 22 Chinese dialects/accents; upstream reports robustness under challenging acoustic conditions | A capable foundation for Chinese meeting transcription, including regional speech |
 | **NVIDIA Nemotron-3-Diarization** | Up to eight speakers per run, overlapping-speech activity, and speaker-cache context; about 100M parameters | Timed speaker attribution without enrolling participants first; independent topic runs accommodate changing participants |
@@ -109,8 +109,8 @@ Restoring the global timeline does not merge speaker identities. The same numeri
 ## Installation
 
 ```bash
-git clone https://github.com/xiaoqiangq/huiji-p.git
-cd huiji-p
+git clone https://github.com/xiaoqiangq/meetingScribe.git
+cd meetingScribe
 ```
 
 Authenticate with your GitHub account for this private repository. Follow the [complete installation guide](docs/INSTALL.en.md): prerequisites, frontend/server build, isolated Python runtimes, model downloads, runtime checks, startup and first-run configuration.
@@ -131,4 +131,8 @@ Scriberr's [MIT license](LICENSE) and copyright notice are retained. See [Attrib
 
 [Docker deployment](docs/DEPLOY.en.md) · [Deployment guide](docs/DEPLOY.en.md) · [Validation status](docs/VALIDATION.en.md) · [Release policy](docs/RELEASE.en.md) · [Changelog](CHANGELOG.md)
 
-Default Compose now builds Huiji P source. No stable release has passed fresh GPU acceptance yet. Model environments and weights are prepared separately. CI checks changes; tag workflows package reviewable candidates without deploying production.
+Default Compose now builds MeetingScribe source. No stable release has passed fresh GPU acceptance yet. Model environments and weights are prepared separately. CI checks changes; tag workflows package reviewable candidates without deploying production.
+
+## Development / 开发与目录规则
+
+See [development workflow](docs/WORKFLOW.md) and [GPU baseline](docs/BASELINE.md). Private notes and test materials belong in `.local/` and are not uploaded to GitHub.

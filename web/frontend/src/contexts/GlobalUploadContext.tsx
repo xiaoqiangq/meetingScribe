@@ -1,6 +1,7 @@
 import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
-import { createContext, useContext, useState, useCallback, type PropsWithChildren, } from "react";
+import { createContext, useContext, useState, useCallback, useRef, useEffect, type PropsWithChildren, } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { useAudioUpload, useMultiTrackUpload } from "@/features/transcription/hooks/useAudioFiles";
 import { useToast } from "@/components/ui/toast";
@@ -15,7 +16,13 @@ interface UploadProgress {
     status: "uploading" | "success" | "error";
     error?: string;
 }
+interface LongUpload {
+    id: string; file: File; isVideo: boolean; topicBoundaries: number[];
+    status: 'queued' | 'uploading' | 'success' | 'error'; percent: number; error?: string;
+}
 interface GlobalUploadContextValue {
+    startLongUpload: (file: File, isVideo: boolean, topicBoundaries: number[]) => void;
+
     // File upload
     handleFileSelect: (files: File | File[] | FileWithType | FileWithType[]) => Promise<void>;
     // Multi-track
@@ -36,11 +43,49 @@ export function GlobalUploadProvider({ children }: PropsWithChildren) {
     const { mutateAsync: uploadMultiTrack } = useMultiTrackUpload();
     const { toast } = useToast();
     const location = useLocation();
+    const queryClient = useQueryClient();
     // Check if we're on the dashboard (home page)
     const isOnDashboard = location.pathname === "/" || location.pathname === "";
     // Upload state
     const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [longUploads, setLongUploads] = useState<LongUpload[]>([]);
+    const longQueue = useRef<LongUpload[]>([]);
+    const longRunning = useRef(false);
+    const updateLong = (id: string, change: Partial<LongUpload>) => setLongUploads(prev => prev.map(row => row.id === id ? { ...row, ...change } : row));
+    const drainLongQueue = async () => {
+        if (longRunning.current) return;
+        longRunning.current = true;
+        try {
+            while (longQueue.current.length) {
+                const row = longQueue.current.shift()!;
+                updateLong(row.id, { status: 'uploading' });
+                try {
+                    await uploadFile({ file: row.file, isVideo: row.isVideo, topicBoundaries: row.topicBoundaries,
+                        onProgress: percent => updateLong(row.id, { percent }) });
+                    updateLong(row.id, { status: 'success', percent: 100 });
+                    toast({ title: translateUI('Upload Complete'), description: row.file.name });
+                    void queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
+                    void queryClient.invalidateQueries({ queryKey: ['accountUsage'] });
+                } catch (error) {
+                    updateLong(row.id, { status: 'error', error: error instanceof Error ? error.message : 'Upload failed' });
+                }
+            }
+        } finally { longRunning.current = false; }
+    };
+    const startLongUpload = (file: File, isVideo: boolean, topicBoundaries: number[]) => {
+        const row: LongUpload = { id: crypto.randomUUID(), file, isVideo, topicBoundaries: [...topicBoundaries], status: 'queued', percent: 0 };
+        setLongUploads(prev => [...prev, row]);
+        longQueue.current.push(row);
+        void drainLongQueue();
+    };
+    const longActive = longUploads.some(row => row.status === 'queued' || row.status === 'uploading');
+    useEffect(() => {
+        if (!longActive) return;
+        const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+        window.addEventListener('beforeunload', warn);
+        return () => window.removeEventListener('beforeunload', warn);
+    }, [longActive]);
     // Multi-track dialog state
     const [isMultiTrackDialogOpen, setIsMultiTrackDialogOpen] = useState(false);
     const [multiTrackPreview, setMultiTrackPreview] = useState<{
@@ -195,16 +240,28 @@ export function GlobalUploadProvider({ children }: PropsWithChildren) {
         handleMultiTrackDialogClose();
     }, [handleMultiTrackUpload, handleMultiTrackDialogClose]);
     const value: GlobalUploadContextValue = {
+        startLongUpload,
         handleFileSelect,
         handleMultiTrackUpload,
         openMultiTrackDialog,
         handleRecordingComplete,
-        isUploading,
+        isUploading: isUploading || longActive,
         uploadProgress,
         isOnDashboard,
     };
     return (<GlobalUploadContext.Provider value={value}>
             {children}
+            {longUploads.length > 0 && <section aria-label={translateUI('后台上传')} className="fixed bottom-4 right-4 z-40 w-[min(420px,calc(100vw-32px))] rounded-xl border bg-background p-4 shadow-lg">
+                <h2 className="font-semibold text-sm">{translateUI('后台上传')}</h2>
+                <p className="text-xs text-muted-foreground">{translateUI('可以继续使用网站；上传期间请勿刷新或关闭页面。')}</p>
+                <div className="max-h-48 overflow-y-auto space-y-3 mt-3">{longUploads.map(row => <div key={row.id} className="text-xs space-y-1">
+                    <p className="truncate" title={row.file.name}>{row.file.name}</p>
+                    <p role="status">{row.status === 'queued' ? translateUI('等待上传') : row.status === 'uploading' ? row.percent >= 100 ? translateUI('文件已发送，服务器正在处理…') : `${translateUI('Uploading...')} ${row.percent}%` : row.status === 'success' ? translateUI('Upload Complete') : `${translateUI('Upload Failed')}：${translateUI(row.error || '')}`}</p>
+                    {row.status === 'uploading' && <progress className="w-full" value={row.percent} max={100}/>}
+                    {row.status === 'error' && <button className="underline mr-3" onClick={() => { updateLong(row.id, { status: 'queued', percent: 0, error: undefined }); longQueue.current.push({ ...row, status: 'queued', percent: 0 }); void drainLongQueue(); }}>{translateUI('重试')}</button>}
+                    {(row.status === 'success' || row.status === 'error') && <button className="underline" onClick={() => setLongUploads(prev => prev.filter(item => item.id !== row.id))}>{translateUI('关闭')}</button>}
+                </div>)}</div>
+            </section>}
 
             {/* Multi-track Upload Dialog (global) */}
             <MultiTrackUploadDialog open={isMultiTrackDialogOpen} onOpenChange={handleMultiTrackDialogClose} onMultiTrackUpload={handleMultiTrackConfirm} prePopulatedFiles={multiTrackPreview?.audioFiles} prePopulatedAupFile={multiTrackPreview?.aupFile} prePopulatedTitle={multiTrackPreview?.title}/>

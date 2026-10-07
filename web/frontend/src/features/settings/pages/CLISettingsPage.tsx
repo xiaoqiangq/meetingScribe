@@ -70,7 +70,7 @@ export function CLISettings() {
                 <div className="bg-white dark:bg-carbon-800 rounded-xl shadow-sm border border-carbon-200 dark:border-carbon-700 overflow-hidden mb-8">
                     <div className="p-6">
                         <h2 className="text-xl font-bold text-carbon-900 dark:text-white mb-4">{translateUI("Installation")}</h2>
-                        <p className="text-carbon-600 dark:text-carbon-300 mb-6">{translateUI("Run this command in your terminal to install the Scriberr CLI. This script will automatically detect your OS and architecture.")}</p>
+                        <p className="text-carbon-600 dark:text-carbon-300 mb-6">{translateUI("Run this command in your terminal to install the MeetingScribe CLI. This script will automatically detect your OS and architecture.")}</p>
 
                         <div className="relative">
                             <div className="bg-carbon-900 rounded-lg p-4 pr-24 font-mono text-sm text-carbon-300 overflow-x-auto">

@@ -49,7 +49,7 @@ CI 已在 GitHub 托管 Linux runner 上通过镜像构建，但它没有本项�
 ## 首次 GitHub CI 通过记录
 
 - 提交：`a51344da8f5a32ddfbd446933786f56cfd5f9bb4`。
-- [CI #1](https://github.com/xiaoqiangq/huiji-p/actions/runs/37198808281)：success。
+- [CI #1](https://github.com/xiaoqiangq/meetingScribe/actions/runs/37198808281)：success。
 - 干净 Ubuntu runner 完成 npm ci、Python 23 项测试、前端 20 项测试与生产构建、Go 回归/API 测试与应用构建、Compose 配置检查、Docker 镜像构建和应用 artifact 上传。
 - 没有 GPU 推理、外部 LLM 或浏览器业务验收；不要扩大通过范围。
 
@@ -60,5 +60,5 @@ CI 已在 GitHub 托管 Linux runner 上通过镜像构建，但它没有本项�
 - 首次Go测试因沙箱无法打开本地HTTP监听而中断；取得本地监听权限后，相同测试通过。
 - 既有部署记录包含7.85秒合成英文样本的真实Qwen与ForcedAligner测试：显式英文和自动检测均返回 `en`，生成25个词时间戳。源码同步没有重跑GPU推理，也没有修改线上服务。
 - 英文默认界面与中文切换已在既有部署记录中通过浏览器检查；源码同步没有重复网页验收。
-- 提交 `b2e3c49e0c3a94a49d5f5f491de7b31983037eb4` 的 [CI #3](https://github.com/xiaoqiangq/huiji-p/actions/runs/37203255936) 已通过测试、应用编译、Compose验证和Docker构建。
+- 提交 `b2e3c49e0c3a94a49d5f5f491de7b31983037eb4` 的 [CI #3](https://github.com/xiaoqiangq/meetingScribe/actions/runs/37203255936) 已通过测试、应用编译、Compose验证和Docker构建。
 - 这些检查不代表全部语言效果、完整英文会议、实时流式或全新GPU安装已通过验收。后续提交的CI状态需独立核查。

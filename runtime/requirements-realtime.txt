@@ -1,0 +1,5 @@
+# Independent environment: never install over the upload ASR/NeMo environments.
+qwen-asr[vllm]==0.0.6
+vllm==0.14.0
+fastapi==0.142.2
+uvicorn==0.54.0

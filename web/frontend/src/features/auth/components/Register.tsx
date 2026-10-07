@@ -98,14 +98,14 @@ export function Register({ onRegister }: RegisterProps) {
 					<div className="flex justify-center mb-6">
 						<ScriberrLogo onClick={() => navigate('/')}/>
 					</div>
-					<h2 className="text-3xl font-bold text-carbon-900 dark:text-carbon-100">{translateUI("Welcome to Scriberr")}</h2>
+					<h2 className="text-3xl font-bold text-carbon-900 dark:text-carbon-100">{translateUI("Welcome to MeetingScribe")}</h2>
 					<p className="mt-2 text-carbon-600 dark:text-carbon-400">{translateUI("Create your admin account to get started")}</p>
 				</div>
 
 				<Card className="bg-white dark:bg-carbon-800 border-carbon-200 dark:border-carbon-700">
 					<CardHeader>
 						<CardTitle className="text-carbon-900 dark:text-carbon-100">{translateUI("Setup Admin Account")}</CardTitle>
-						<CardDescription className="text-carbon-600 dark:text-carbon-400">{translateUI("This will be the only account that can access this Scriberr instance")}</CardDescription>
+						<CardDescription className="text-carbon-600 dark:text-carbon-400">{translateUI("This will be the only account that can access this MeetingScribe instance")}</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<form onSubmit={handleSubmit} className="space-y-6">
@@ -162,7 +162,7 @@ export function Register({ onRegister }: RegisterProps) {
 				</Card>
 
 				<div className="text-center">
-					<p className="text-sm text-carbon-600 dark:text-carbon-400">{translateUI("This account will have full administrative access to your Scriberr instance")}</p>
+					<p className="text-sm text-carbon-600 dark:text-carbon-400">{translateUI("This account will have full administrative access to your MeetingScribe instance")}</p>
 				</div>
 			</div>
 		</div>);

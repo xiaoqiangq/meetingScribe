@@ -56,6 +56,11 @@ export function useSelectionMenu(
 
             // 2. Geometry: Get screen coordinates
             const range = selection.getRangeAt(0);
+            // Draft words may still change and have no final word-time indices.
+            if (Array.from(containerRef.current.querySelectorAll('[data-transcript-draft]')).some(node => range.intersectsNode(node))) {
+                setMenuState(null);
+                return;
+            }
             const rect = range.getBoundingClientRect();
 
             // Each displayed paragraph has its own text and word-time map.

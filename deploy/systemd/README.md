@@ -1,4 +1,4 @@
-# Huiji P service and verified backups
+# MeetingScribe service and verified backups
 
 Extract the Linux package to `~/huiji-p`; configure `.env`, Python runtimes and model weights first. Adjust unit paths for other locations. These user-systemd templates mirror the tested GPU deployment. Container deployments may keep their own restart policy and run backup helpers on the host.
 

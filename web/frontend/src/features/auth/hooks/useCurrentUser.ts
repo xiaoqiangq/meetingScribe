@@ -7,6 +7,17 @@ export interface CurrentUser {
     role: 'admin' | 'user';
     disabled: boolean;
     created_at: string;
+    project_limit?: number;
+    file_quota_bytes?: number;
+    audio_quota_bytes?: number;
+    project_count?: number;
+    completed_count?: number;
+    active_count?: number;
+    audio_bytes?: number;
+    artifact_bytes?: number;
+    storage_bytes?: number;
+    quota_bytes?: number;
+    usage_incomplete?: boolean;
 }
 export function useCurrentUser() {
     const token = useAuthStore(s => s.token);

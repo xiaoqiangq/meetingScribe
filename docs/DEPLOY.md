@@ -1,10 +1,10 @@
-# 会记P Docker 部署
+# MeetingScribe Docker 部署
 
 [English](DEPLOY.en.md) · [原生安装](INSTALL.md) · [验收](VALIDATION.md)
 
 ## 部署入口
 
-默认 `docker-compose.yml` 构建本仓库的会记P代码，不拉取原版 Scriberr。其他三个 Compose 文件保留为兼容入口，内容相同；`Dockerfile` / `Dockerfile.cuda` 均提供 Linux CUDA 应用运行环境。
+默认 `docker-compose.yml` 构建本仓库的MeetingScribe代码，不拉取原版 Scriberr。其他三个 Compose 文件保留为兼容入口，内容相同；`Dockerfile` / `Dockerfile.cuda` 均提供 Linux CUDA 应用运行环境。
 
 镜像包含网站程序、Python 3.12、ffmpeg、uv、运行脚本；**不包含模型权重和 Qwen/NeMo 专用虚拟环境**。首次准备这些环境需要联网和额外磁盘。此 Docker 配置已通过 GitHub 干净 Linux runner 的镜像构建；GPU 模型环境安装与全链路验收尚未完成，不能视为已经验证的一键部署包。
 

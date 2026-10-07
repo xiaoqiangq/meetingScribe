@@ -39,7 +39,7 @@ export function APIKeySettings() {
 				<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4">
 					<div>
 						<h3 className="text-lg font-medium text-[var(--text-primary)]">{translateUI("API Keys")}</h3>
-						<p className="text-sm text-[var(--text-secondary)] mt-1">{translateUI("Manage your API keys for external access to Scriberr.")}</p>
+						<p className="text-sm text-[var(--text-secondary)] mt-1">{translateUI("Manage your API keys for external access to MeetingScribe.")}</p>
 					</div>
 					<Button onClick={handleCreateAPIKey} className="!bg-[var(--brand-gradient)] hover:!opacity-90 !text-black dark:!text-white shadow-lg shadow-orange-500/20 border-none">{translateUI("Create New API Key")}</Button>
 				</div>

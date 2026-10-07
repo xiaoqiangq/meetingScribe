@@ -14,6 +14,8 @@ const VoiceprintLibrary = lazy(() => import('@/features/settings/pages/Voiceprin
 
 const UsersPage = lazy(() => import('@/features/admin/UsersPage').then(m => ({default:m.UsersPage})))
 
+const LiveTranscriptionPage = lazy(() => import("@/components/LiveTranscriptionDialog").then(m => ({default:m.LiveTranscriptionPage})));
+
 // Loading component
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -26,6 +28,7 @@ function App() {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/live" element={<LiveTranscriptionPage />} />
         <Route path="/audio/:audioId" element={<AudioDetailView />} />
 
         <Route path="/voiceprints" element={<AdminRoute><VoiceprintLibrary /></AdminRoute>} />

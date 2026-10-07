@@ -47,6 +47,14 @@ func (r *userRepository) CountWithAutoTranscription(ctx context.Context) (int64,
 	return count, err
 }
 
+// WithLightweightJobList omits large result fields for the task list UI.
+// Full API list responses remain available for existing clients.
+type lightweightJobListKey struct{}
+
+func WithLightweightJobList(ctx context.Context) context.Context {
+	return context.WithValue(ctx, lightweightJobListKey{}, true)
+}
+
 // JobRepository handles transcription job operations
 type JobRepository interface {
 	Repository[models.TranscriptionJob]
@@ -56,6 +64,7 @@ type JobRepository interface {
 	ListWithParams(ctx context.Context, offset, limit int, sortBy, sortOrder, searchQuery string, updatedAfter *time.Time) ([]models.TranscriptionJob, int64, error)
 	ListByUser(ctx context.Context, userID uint, offset, limit int) ([]models.TranscriptionJob, int64, error)
 	UpdateTranscript(ctx context.Context, jobID string, transcript string) error
+	UpdateRealtime(ctx context.Context, jobID string, transcript string, audioBytes int64, status models.JobStatus, message string) error
 	CreateExecution(ctx context.Context, execution *models.TranscriptionJobExecution) error
 	UpdateExecution(ctx context.Context, execution *models.TranscriptionJobExecution) error
 	DeleteExecutionsByJobID(ctx context.Context, jobID string) error
@@ -141,6 +150,10 @@ func (r *jobRepository) ListWithParams(ctx context.Context, offset, limit int, s
 		db = db.Order("created_at desc")
 	}
 
+	// Avoid reading large transcripts and summaries for UI list requests.
+	if lightweight, _ := ctx.Value(lightweightJobListKey{}).(bool); lightweight {
+		db = db.Omit("Transcript", "Summary", "IndividualTranscripts", "QuickCleanupFiles")
+	}
 	// Apply pagination
 	err := db.Offset(offset).Limit(limit).Find(&jobs).Error
 	if err != nil {
@@ -663,4 +676,20 @@ func (r *jobRepository) CountActiveByOwner(ctx context.Context, owner uint) (int
 	var n int64
 	err := r.db.WithContext(ctx).Model(&models.TranscriptionJob{}).Where("owner_id = ? AND status IN ?", owner, []models.JobStatus{models.StatusPending, models.StatusProcessing}).Count(&n).Error
 	return n, err
+}
+
+// Update only realtime-owned columns so title edits and speaker mappings survive checkpoints.
+func (r *jobRepository) UpdateRealtime(ctx context.Context, id string, transcript string, audioBytes int64, status models.JobStatus, message string) error {
+	var errorMessage *string
+	if message != "" {
+		errorMessage = &message
+	}
+	result := r.db.WithContext(ctx).Model(&models.TranscriptionJob{}).Where("id = ?", id).Updates(map[string]interface{}{"transcript": transcript, "audio_bytes": audioBytes, "status": status, "error_message": errorMessage})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }

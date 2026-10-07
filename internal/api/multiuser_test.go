@@ -84,6 +84,14 @@ func TestMultiuserAccessAndMigration(t *testing.T) {
 		router.ServeHTTP(w, req)
 		return w
 	}
+	own := call("GET", "/api/v1/auth/me/usage?user_id="+fmt.Sprint(b.ID), "", tokens[a.Username])
+	var personal AccountWithUsage
+	if own.Code != 200 || json.Unmarshal(own.Body.Bytes(), &personal) != nil || personal.ID != a.ID || personal.ProjectCount != 1 {
+		t.Fatalf("personal usage exposed another user: %s", own.Body)
+	}
+	if w := call("PATCH", "/api/v1/admin/users/"+fmt.Sprint(a.ID), `{"audio_quota_bytes":1}`, tokens[a.Username]); w.Code != 403 {
+		t.Fatal("ordinary user changed quota")
+	}
 	for _, test := range []struct {
 		method, path, body string
 		code               int

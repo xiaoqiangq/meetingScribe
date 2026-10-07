@@ -26,3 +26,7 @@ whisperx-env
 *.pt
 *.pth
 *.log
+
+.local
+**/.local
+.build-tools

@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 interface TranscriptSectionProps {
     audioId: string;
+    livePartial?: {text:string;start:number;end:number;speaker?:string|null};
     currentWordIndex: number | null;
     currentTime: number;
     isPlaying: boolean;
@@ -35,7 +36,7 @@ interface TranscriptSectionProps {
     setDownloadDialogOpen: (open: boolean) => void;
     downloadFormat: 'txt' | 'json';
 }
-export function TranscriptSection({ audioId, currentWordIndex, currentTime, isPlaying, onSeek, transcript, speakerMappings, transcriptMode, autoScrollEnabled, notesOpen, setNotesOpen, speakerRenameOpen, setSpeakerRenameOpen, downloadDialogOpen, setDownloadDialogOpen, downloadFormat, className }: TranscriptSectionProps & {
+export function TranscriptSection({ livePartial, audioId, currentWordIndex, currentTime, isPlaying, onSeek, transcript, speakerMappings, transcriptMode, autoScrollEnabled, notesOpen, setNotesOpen, speakerRenameOpen, setSpeakerRenameOpen, downloadDialogOpen, setDownloadDialogOpen, downloadFormat, className }: TranscriptSectionProps & {
     className?: string;
 }) {
     useInterfaceLanguage();
@@ -147,7 +148,7 @@ export function TranscriptSection({ audioId, currentWordIndex, currentTime, isPl
             // Ensure this container doesn't interfere with touch events
             touchAction: 'pan-y pinch-zoom'
         }}>
-                        <TranscriptView transcript={transcript} mode={transcriptMode} currentWordIndex={currentWordIndex} currentTime={currentTime} isPlaying={isPlaying} notes={notes} onSeek={onSeek} highlightedWordRef={highlightedWordRef} speakerMappings={speakerMappings} autoScrollEnabled={autoScrollEnabled}/>
+                        <TranscriptView transcript={transcript} mode={transcriptMode} currentWordIndex={currentWordIndex} currentTime={currentTime} isPlaying={isPlaying} notes={notes} onSeek={onSeek} highlightedWordRef={highlightedWordRef} speakerMappings={speakerMappings} autoScrollEnabled={autoScrollEnabled} livePartial={livePartial}/>
                     </div>
                 </div>
             </div>

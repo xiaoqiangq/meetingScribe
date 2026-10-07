@@ -74,6 +74,50 @@ export function shouldStartNewParagraph(previousText: string, nextText: string,
     return (tooLong && sentenceEnd.test(previousText)) || previousText.length + nextText.length > 440 || nextEnd - previousStart > 90;
 }
 
+export interface RealtimeDisplaySegment {
+    start: number;
+    end: number;
+    text: string;
+    speaker?: string | null;
+}
+
+export interface RealtimeParagraph extends RealtimeDisplaySegment {
+    draft: string;
+}
+
+// Rebuild from each complete response so revised speaker labels and draft text
+// replace earlier results. Original segments and word timestamps remain intact.
+export function groupRealtimeParagraphs(segments: RealtimeDisplaySegment[],
+    partial?: RealtimeDisplaySegment | null): RealtimeParagraph[] {
+    const paragraphs: RealtimeParagraph[] = [];
+    function append(segment: RealtimeDisplaySegment, provisional: boolean) {
+        const text = segment.text.trim();
+        if (!text) return;
+        const previous = paragraphs[paragraphs.length - 1];
+        const gap = previous ? segment.start - previous.end : 0;
+        const join = previous && (previous.speaker || null) === (segment.speaker || null)
+            && gap >= -0.5 && gap <= 3
+            && !shouldStartNewParagraph(previous.text, text, previous.start, segment.end);
+        if (join) {
+            previous.end = Math.max(previous.end, segment.end);
+            if (provisional) previous.draft = text;
+            else previous.text = joinRealtimeText(previous.text, text);
+        } else {
+            paragraphs.push({ start: segment.start, end: segment.end,
+                speaker: segment.speaker || null,
+                text: provisional ? '' : text, draft: provisional ? text : '' });
+        }
+    }
+    segments.forEach(segment => append(segment, false));
+    if (partial) append(partial, true);
+    return paragraphs;
+}
+
+export function joinRealtimeText(previous: string, next: string): string {
+    const separator = /[A-Za-z0-9]$/.test(previous) && /^[A-Za-z0-9]/.test(next) ? ' ' : '';
+    return previous + separator + next;
+}
+
 export function splitDisplayWordsIntoSentences<T extends DisplayWord>(words: T[]): T[][] {
     const sentences: T[][] = [];
     let current: T[] = [];
@@ -86,4 +130,31 @@ export function splitDisplayWordsIntoSentences<T extends DisplayWord>(words: T[]
     }
     if (current.length) sentences.push(current);
     return sentences;
+}
+
+// Shared merge path for aligned sentences and fallback ASR fragments.
+// Original word indices and timestamps travel with the shifted display offsets.
+export function appendReadingParagraph<T extends DisplaySegment & {
+    fullText: string; offsets: Array<{startChar:number;endChar:number}>;
+}>(paragraphs: T[], part: T): void {
+    const previous = paragraphs[paragraphs.length - 1];
+    if (!previous || (previous.speaker || null) !== (part.speaker || null) || part.start - previous.end > 8 ||
+        shouldStartNewParagraph(previous.fullText, part.fullText, previous.start, part.end)) {
+        paragraphs.push(part);
+        return;
+    }
+    const separator = /[A-Za-z0-9]$/.test(previous.fullText) && /^[A-Za-z0-9]/.test(part.fullText) ? ' ' : '';
+    const shift = previous.fullText.length + separator.length;
+    previous.fullText += separator + part.fullText;
+    previous.text = previous.fullText;
+    previous.end = part.end;
+    previous.offsets.push(...part.offsets.map(offset => ({...offset,
+        startChar:offset.startChar+shift, endChar:offset.endChar+shift})));
+}
+
+export function shouldAttachRealtimeDraft(last: DisplaySegment | undefined,
+    draft?: {text:string;start:number;end:number;speaker?:string|null}): boolean {
+    return !!(last && draft?.text && draft.start-last.end <= 8 && draft.start-last.end >= -.5 &&
+        (!draft.speaker || draft.speaker === last.speaker) &&
+        !shouldStartNewParagraph(last.text,draft.text,last.start,draft.end));
 }

@@ -33,7 +33,7 @@ var (
 	date    = "unknown"
 )
 
-// @title Scriberr API
+// @title MeetingScribe API
 // @version 1.0
 // @description Audio transcription service using WhisperX
 // @termsOfService http://swagger.io/terms/
@@ -63,7 +63,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("Scriberr %s\n", version)
+		fmt.Printf("MeetingScribe %s\n", version)
 		fmt.Printf("Commit: %s\n", commit)
 		fmt.Printf("Built: %s\n", date)
 		os.Exit(0)
@@ -71,7 +71,7 @@ func main() {
 
 	// Initialize structured logging first
 	logger.Init(os.Getenv("LOG_LEVEL"))
-	logger.Info("Starting Scriberr", "version", version)
+	logger.Info("Starting MeetingScribe", "version", version)
 
 	// Load configuration
 	logger.Startup("config", "Loading configuration")
@@ -194,7 +194,7 @@ func main() {
 
 	// Give the server a moment to start
 	time.Sleep(100 * time.Millisecond)
-	logger.Info("Scriberr is ready",
+	logger.Info("MeetingScribe is ready",
 		"url", fmt.Sprintf("http://%s:%s", cfg.Host, cfg.Port))
 	logger.Debug("API documentation available at /swagger/index.html")
 

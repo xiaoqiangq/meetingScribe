@@ -50,6 +50,8 @@ func SetupStaticRoutes(router *gin.Engine, authService *auth.AuthService) {
 			return
 		}
 
+		c.Header("Cache-Control", "public, max-age=31536000, immutable")
+
 		// Set appropriate content type based on file extension
 		if strings.Contains(fullPath, ".css") {
 			c.Data(http.StatusOK, "text/css", fileContent)
@@ -99,6 +101,7 @@ func SetupStaticRoutes(router *gin.Engine, authService *auth.AuthService) {
 		}
 
 		// Try to serve file from dist directly (for PWA assets like sw.js, manifest.webmanifest)
+		c.Header("Cache-Control", "no-cache")
 		path := strings.TrimPrefix(c.Request.URL.Path, "/")
 
 		// Prevent directory traversal (basic check, though embed.FS is safe)

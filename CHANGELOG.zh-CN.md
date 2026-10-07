@@ -2,6 +2,15 @@
 
 [English](CHANGELOG.md)
 
+## v0.1.0-rc.4 — 2026-10-07
+
+- 中英文展示名统一为 MeetingScribe，保留上游署名及兼容的技术标识。
+- 新增麦克风实时转写：Qwen3-ASR-1.7B/vLLM、连续 Nemotron-3 说话人区分、VAD 与确认文字的字级对齐。
+- 复用音频项目页面的文字编辑、角色修改、播放、笔记与纪要流程，音频和确认文字持续保存。
+- 新增增量 Chunk Manager、保守的说话人确认、同人段落合并与行内临时文字；结束后可按保存配置重新处理完整录音。
+- 修复麦克风录音未知时长与配置弹窗布局，同步已验证 GPU 源码基线、本地字体及账号/上传改进。
+- 已验证 58 项前端测试、20 项实时 Python 测试、6 项原 Chunk Manager 测试、应用构建及 45 秒 GPU 分块回放。全新 GPU 安装、基于参考答案的分人准确率及多浏览器验收仍待完成，继续预发布。
+
 ## v0.1.0-rc.3 — 2026-10-06
 
 - Correct the header logo to the exact JPG deployed on GPU1 after v18 verification. The prior rc.2 package still used the older PNG.

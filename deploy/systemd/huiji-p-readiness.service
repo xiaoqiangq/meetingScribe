@@ -1,5 +1,5 @@
 [Unit]
-Description=Check Huiji P readiness and recover an unresponsive service
+Description=Check MeetingScribe readiness and recover an unresponsive service
 
 [Service]
 WorkingDirectory=%h/huiji-p

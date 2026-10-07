@@ -4,7 +4,7 @@ import { useKaraokeHighlight, computeWordOffsets, findActiveWordIndex } from '@/
 import { cn } from '@/lib/utils';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import type { Note } from '@/types/note';
-import { prepareTranscriptForDisplay, shouldStartNewParagraph, splitDisplayWordsIntoSentences } from './transcriptDisplay';
+import { prepareTranscriptForDisplay, appendReadingParagraph, shouldAttachRealtimeDraft, splitDisplayWordsIntoSentences } from './transcriptDisplay';
 // Helper for cross-browser caret position
 function getCaretOffsetFromPoint(x: number, y: number) {
     if (document.caretRangeFromPoint) {
@@ -27,6 +27,7 @@ interface WordSegment {
     speaker?: string;
 }
 interface Transcript {
+    realtime?: boolean;
     text: string;
     segments?: Array<{
         start: number;
@@ -42,6 +43,7 @@ type ExpandedSegment = NonNullable<Transcript['segments']>[number] & {
 };
 interface TranscriptViewProps {
     transcript: Transcript | null;
+    livePartial?: {text:string;start:number;end:number;speaker?:string|null};
     mode: 'compact' | 'expanded';
     currentWordIndex: number | null;
     currentTime: number;
@@ -53,7 +55,7 @@ interface TranscriptViewProps {
     onSeek: (time: number) => void;
     className?: string;
 }
-export const TranscriptView = forwardRef<HTMLDivElement, TranscriptViewProps>(({ transcript, mode, 
+export const TranscriptView = forwardRef<HTMLDivElement, TranscriptViewProps>(({ transcript, livePartial, mode,
 // currentWordIndex, 
 currentTime, isPlaying, 
 // notes, 
@@ -92,6 +94,7 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
         // Only trigger if Cmd (Mac) or Ctrl (Windows) is held
         if (!e.metaKey && !e.ctrlKey)
             return;
+        if ((e.target as Element).closest('[data-transcript-draft]')) return;
         const clickOffset = getCaretOffsetFromPoint(e.clientX, e.clientY);
         if (clickOffset === null)
             return;
@@ -141,20 +144,7 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
                     endTime: segment.end,
                     word: text,
                 });
-                const previous = paragraphs[paragraphs.length - 1];
-                const sameSpeaker = previous && previous.speaker === segment.speaker;
-                const longParagraph = previous && shouldStartNewParagraph(previous.fullText, text, previous.start, segment.end);
-                if (sameSpeaker && !longParagraph) {
-                    const separator = /[A-Za-z0-9]$/.test(previous.fullText) && /^[A-Za-z0-9]/.test(text) ? ' ' : '';
-                    const startChar = previous.fullText.length + separator.length;
-                    previous.fullText += separator + text;
-                    previous.text = previous.fullText;
-                    previous.end = segment.end;
-                    previous.offsets.push(sentenceOffset(startChar));
-                }
-                else {
-                    paragraphs.push({ ...segment, text, fullText: text, offsets: [sentenceOffset(0)] });
-                }
+                appendReadingParagraph(paragraphs, { ...segment, text, fullText: text, offsets: [sentenceOffset(0)] });
             }
             return paragraphs;
         }
@@ -174,7 +164,10 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
         displayTranscript.segments.forEach((segment, index) => {
             const segmentWords = wordsBySegment[index];
             if (segmentWords.length === 0) {
-                paragraphs.push({ ...segment, fullText: segment.text, offsets: [] });
+                appendReadingParagraph(paragraphs, { ...segment, fullText: segment.text, offsets: [{
+                    startChar:0, endChar:segment.text.length, startTime:segment.start,
+                    endTime:segment.end, word:segment.text,
+                }] });
                 return;
             }
             // An ASR segment may contain several speakers. Split it at word-level
@@ -184,7 +177,7 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
                 words: WordSegment[];
             }> = [];
             for (const word of segmentWords) {
-                const speaker = word.speaker || runs[runs.length - 1]?.speaker || segment.speaker;
+                const speaker = displayTranscript.realtime ? (word.speaker ?? undefined) : (word.speaker || runs[runs.length - 1]?.speaker || segment.speaker);
                 const lastRun = runs[runs.length - 1];
                 if (!lastRun || lastRun.speaker !== speaker) {
                     runs.push({ speaker, words: [word] });
@@ -207,25 +200,7 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
                     fullText,
                     offsets,
                 };
-                const previous = paragraphs[paragraphs.length - 1];
-                const sameSpeaker = previous && previous.speaker === part.speaker;
-                const longParagraph = previous && shouldStartNewParagraph(previous.fullText, fullText, previous.start, part.end);
-                const longPause = previous && part.start - previous.end > 8;
-                if (sameSpeaker && !longParagraph && !longPause) {
-                    const separator = /[A-Za-z0-9]$/.test(previous.fullText) && /^[A-Za-z0-9]/.test(fullText) ? ' ' : '';
-                    const shift = previous.fullText.length + separator.length;
-                    previous.fullText += separator + fullText;
-                    previous.text = previous.fullText;
-                    previous.end = part.end;
-                    previous.offsets.push(...offsets.map(offset => ({
-                        ...offset,
-                        startChar: offset.startChar + shift,
-                        endChar: offset.endChar + shift,
-                    })));
-                }
-                else {
-                    paragraphs.push(part);
-                }
+                appendReadingParagraph(paragraphs, part);
             }));
         });
         return paragraphs;
@@ -319,6 +294,7 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
             }
             return;
         }
+        if ((e.target as Element).closest('[data-transcript-draft]')) return;
         const clickOffset = getCaretOffsetFromPoint(e.clientX, e.clientY);
         if (clickOffset === null)
             return;
@@ -336,10 +312,13 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
                 <p>{translateUI("No transcript available.")}</p>
             </div>);
     }
+    const lastParagraph = expandedData[expandedData.length-1];
+    const attachDraft = shouldAttachRealtimeDraft(lastParagraph ? {...lastParagraph,text:lastParagraph.fullText} : undefined, livePartial);
+    const draftText = livePartial?.text ? <span data-transcript-draft="true" className="select-none text-muted-foreground">{` ${translateUI('Recognizing…')}${!livePartial.speaker ? ` · ${translateUI('Speaker pending')}` : ''} `}{livePartial.text}</span> : null;
     // Render transcript with word-level highlighting for compact view
     const renderCompactView = () => {
         if (!displayTranscript?.word_segments?.length) {
-            return <p className="text-lg leading-relaxed text-carbon-700 dark:text-carbon-300 whitespace-pre-wrap">{displayTranscript?.text}</p>;
+            return <p className="text-lg leading-relaxed text-carbon-700 dark:text-carbon-300 whitespace-pre-wrap">{displayTranscript?.text}{draftText}</p>;
         }
         return (<div ref={containerRef} data-selection-map={compactSelectionMap} onClick={isDesktop ? handleWordClick : undefined} className={cn("text-lg leading-relaxed text-carbon-700 dark:text-carbon-300 whitespace-pre-wrap font-reading selection:bg-orange-500/30 transition-colors duration-200 select-text", isDesktop && isModifierPressed ? 'cursor-pointer hover:text-carbon-900 dark:hover:text-carbon-100' : 'cursor-text')} style={{
                 // CRITICAL: Enable native text selection on iOS/Android
@@ -354,7 +333,7 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
                 WebkitTouchCallout: 'default'
             }}>
                 {/* The hook returns the built text string, so we just render it directly */}
-                {fullText}
+                {fullText}{draftText}
             </div>);
     };
     const renderExpandedView = () => {
@@ -372,8 +351,8 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
                             {isNewTurn && (<button type="button" onClick={() => onSeek(segment.start)} title={translateUI("\u4ECE\u8FD9\u91CC\u64AD\u653E")} className="font-mono bg-carbon-100 dark:bg-carbon-800/80 px-1.5 py-0.5 rounded text-[10px] sm:text-xs hover:text-[var(--brand-solid)] cursor-pointer">
                                     {new Date(segment.start * 1000).toISOString().substr(11, 8)}
                                 </button>)}
-                            {segment.speaker && isNewTurn && (<span className="font-medium text-carbon-700 dark:text-carbon-300 truncate max-w-full" title={getDisplaySpeakerName(segment.speaker)}>
-                                    {getDisplaySpeakerName(segment.speaker)}
+                            {(segment.speaker || displayTranscript.realtime) && isNewTurn && (<span className="font-medium text-carbon-700 dark:text-carbon-300 truncate max-w-full" title={segment.speaker ? getDisplaySpeakerName(segment.speaker) : translateUI('Speaker pending')}>
+                                    {segment.speaker ? getDisplaySpeakerName(segment.speaker) : translateUI('Speaker pending')}
                                 </span>)}
                         </div>
 
@@ -399,6 +378,7 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
                                         </span>);
                         })
                         : (segment.fullText || segment.text)}
+                        {attachDraft && i === expandedData.length-1 && draftText}
                         </div>
                     </div>);
             })}
@@ -406,6 +386,13 @@ speakerMappings, autoScrollEnabled, onSeek, className }, ref) => {
     };
     return (<div ref={ref} className={cn("w-full max-w-none font-inter mt-4", className)}>
             {mode === 'compact' ? renderCompactView() : renderExpandedView()}
+            {livePartial?.text && mode !== 'compact' && displayTranscript?.segments?.length && !attachDraft && <div className="flex flex-col sm:flex-row items-start gap-4 px-3 py-3">
+                <div className="flex-shrink-0 w-24 sm:w-28 flex flex-col sm:items-end gap-1 text-xs text-muted-foreground">
+                    <span>{translateUI('Recognizing…')}</span>
+                    <span>{livePartial.speaker ? getDisplaySpeakerName(livePartial.speaker) : translateUI('Speaker pending')}</span>
+                </div>
+                <p className="min-w-0 flex-1 text-base leading-relaxed whitespace-normal break-words text-muted-foreground">{livePartial.text}</p>
+            </div>}
 
             {/* CSS for the Highlight API - Global for both views */}
             <style>{`

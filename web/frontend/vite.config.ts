@@ -14,8 +14,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'Huiji P',
-        short_name: 'Huiji P',
+        name: 'MeetingScribe',
+        short_name: 'MeetingScribe',
         description: 'Audio transcription and meeting minutes',
         theme_color: '#8936FF',
         background_color: '#2EC6FE',

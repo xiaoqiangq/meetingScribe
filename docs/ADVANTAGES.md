@@ -1,8 +1,8 @@
-# 会记P的优势与适用边界
+# MeetingScribe的优势与适用边界
 
 [English](ADVANTAGES.en.md) · [返回首页](../README.zh-CN.md) · [完整流程](ARCHITECTURE.md)
 
-会记P把语音转文字、说话人时间区间、逐字试听和会议纪要接成可复核的会议工作流。尤其适合中文长会议、分议题讨论、发言阵容变化，以及需要人工确认人物身份的场景。
+MeetingScribe把语音转文字、说话人时间区间、逐字试听和会议纪要接成可复核的会议工作流。尤其适合中文长会议、分议题讨论、发言阵容变化，以及需要人工确认人物身份的场景。
 
 ## 优势一：适合中文会议的模型组合
 
@@ -60,7 +60,7 @@ topic不是自动检测；两个topic的speaker_0不能直接视为同一人。�
 
 ## 性能与验证范围
 
-官方模型基准、项目构建验证、真实会议效果属于不同证据。Nemotron官方AliMeeting近场/远场DER在30.4秒延迟配置下分别为6.40%/10.47%；该数据集为2–4人，不能据此承诺8人会议效果，也不是会记P的端到端实测。延迟参数不是整段会议的处理耗时。[官方评测](https://huggingface.co/nvidia/Nemotron-3-Diarization)
+官方模型基准、项目构建验证、真实会议效果属于不同证据。Nemotron官方AliMeeting近场/远场DER在30.4秒延迟配置下分别为6.40%/10.47%；该数据集为2–4人，不能据此承诺8人会议效果，也不是MeetingScribe的端到端实测。延迟参数不是整段会议的处理耗时。[官方评测](https://huggingface.co/nvidia/Nemotron-3-Diarization)
 
 项目已在A100部署环境运行中文链路，GitHub CI通过应用检查和Docker构建；整站速度、跨topic准确率及与商业产品的同条件比较尚未系统测量。独立全新GPU安装与业务验收仍待完成。详见[验证记录](VALIDATION.md)。
 

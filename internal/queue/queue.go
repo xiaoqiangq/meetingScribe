@@ -35,6 +35,7 @@ type TaskQueue struct {
 	runningJobs    map[string]*RunningJob
 	admitted       map[string]bool
 	admissionMutex sync.Mutex
+	realtimeUntil  time.Time
 	jobsMutex      sync.RWMutex
 	autoScale      bool
 	lastScaleTime  time.Time
@@ -144,6 +145,9 @@ func (tq *TaskQueue) Stop() {
 func (tq *TaskQueue) EnqueueJob(jobID string) error {
 	tq.admissionMutex.Lock()
 	defer tq.admissionMutex.Unlock()
+	if time.Now().Before(tq.realtimeUntil) {
+		return fmt.Errorf("realtime microphone session is active; retry after it finishes")
+	}
 	if tq.admitted[jobID] {
 		return nil
 	}
@@ -184,6 +188,36 @@ func (tq *TaskQueue) EnqueueJob(jobID string) error {
 	default:
 		return fmt.Errorf("queue is full")
 	}
+}
+
+// ReserveRealtime shares the admission lock with ordinary jobs. The renewable
+// lease releases automatically after a disconnected browser stops sending audio.
+func (tq *TaskQueue) ReserveRealtime() bool {
+	tq.admissionMutex.Lock()
+	defer tq.admissionMutex.Unlock()
+	if time.Now().Before(tq.realtimeUntil) || len(tq.admitted) != 0 {
+		return false
+	}
+	tq.jobsMutex.RLock()
+	busy := len(tq.runningJobs) != 0
+	tq.jobsMutex.RUnlock()
+	if busy {
+		return false
+	}
+	tq.realtimeUntil = time.Now().Add(90 * time.Second)
+	return true
+}
+
+func (tq *TaskQueue) RenewRealtime() {
+	tq.admissionMutex.Lock()
+	tq.realtimeUntil = time.Now().Add(90 * time.Second)
+	tq.admissionMutex.Unlock()
+}
+
+func (tq *TaskQueue) ReleaseRealtime() {
+	tq.admissionMutex.Lock()
+	tq.realtimeUntil = time.Time{}
+	tq.admissionMutex.Unlock()
 }
 
 // worker processes jobs from the channel

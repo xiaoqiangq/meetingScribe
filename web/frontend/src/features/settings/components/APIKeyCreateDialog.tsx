@@ -88,7 +88,7 @@ export function APIKeyCreateDialog({ open, onOpenChange, onKeyCreated, }: APIKey
 			<DialogContent className="sm:max-w-md bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-primary)]">
 				<DialogHeader>
 					<DialogTitle>{translateUI("Create New API Key")}</DialogTitle>
-					<DialogDescription>{translateUI("Create a new API key for external access to Scriberr. Give it a\n\t\t\t\t\t\tdescriptive name to help you identify it later.")}</DialogDescription>
+					<DialogDescription>{translateUI("Create a new API key for external access to MeetingScribe. Give it a\n\t\t\t\t\t\tdescriptive name to help you identify it later.")}</DialogDescription>
 				</DialogHeader>
 
 				<form onSubmit={handleSubmit} className="space-y-4">

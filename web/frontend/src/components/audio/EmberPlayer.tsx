@@ -1,8 +1,10 @@
 import { useRef, useState, useEffect, forwardRef, useImperativeHandle, useCallback } from "react";
+import { t } from "@/i18n";
 import { Play, Pause, AlertCircle } from "lucide-react";
 import { AudioVisualizer } from "./AudioVisualizer";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { formatMediaTime, isKnownDuration, recoverMediaDuration } from "./mediaDuration";
 
 export interface EmberPlayerRef {
     seekTo: (time: number) => void;
@@ -12,6 +14,7 @@ export interface EmberPlayerRef {
 
 export interface EmberPlayerProps {
     src?: string;
+    disabled?: boolean;
     audioId?: string;
     className?: string;
     onTimeUpdate?: (time: number) => void;
@@ -19,11 +22,12 @@ export interface EmberPlayerProps {
 }
 
 export const EmberPlayer = forwardRef<EmberPlayerRef, EmberPlayerProps>(
-    ({ src, audioId, className, onTimeUpdate, onPlayStateChange }, ref) => {
+    ({ src, audioId, className, onTimeUpdate, onPlayStateChange, disabled = false }, ref) => {
         const audioRef = useRef<HTMLAudioElement>(null);
         const progressRef = useRef<HTMLDivElement>(null);
         const fallbackStartedRef = useRef(false);
         const objectUrlRef = useRef<string | null>(null);
+        const durationRecoveryRef = useRef<(() => void) | null>(null);
         const { getAuthHeaders } = useAuth();
 
         const [isPlaying, setIsPlaying] = useState(false);
@@ -40,22 +44,36 @@ export const EmberPlayer = forwardRef<EmberPlayerRef, EmberPlayerProps>(
         // --- 1. Parent Control (ForwardRef) ---
         useImperativeHandle(ref, () => ({
             seekTo: (time: number) => {
-                if (audioRef.current) {
-                    audioRef.current.currentTime = time;
-                    setCurrentTime(time);
-                    onTimeUpdate?.(time);
+                if (!disabled && audioRef.current && Number.isFinite(time)) {
+                    const target = Math.max(0, isKnownDuration(duration) ? Math.min(time, duration) : time);
+                    audioRef.current.currentTime = target;
+                    setCurrentTime(target);
+                    onTimeUpdate?.(target);
                 }
             },
             playPause: () => togglePlay(),
             isPlaying: () => isPlaying
         }));
 
+        // Only one project/preview audio should be audible at a time.
+        useEffect(() => {
+            const pauseForPreview = () => audioRef.current?.pause();
+            window.addEventListener('huiji:preview-start', pauseForPreview);
+            return () => window.removeEventListener('huiji:preview-start', pauseForPreview);
+        }, []);
+
         // --- 2. URL Logic ---
         useEffect(() => {
             fallbackStartedRef.current = false;
             setError(null);
+            setDuration(0);
+            setCurrentTime(0);
+            setIsDragging(false);
+            setIsPlaying(false);
             setStreamUrl(src || (audioId ? `/api/v1/transcription/${audioId}/audio` : undefined));
             return () => {
+                durationRecoveryRef.current?.();
+                durationRecoveryRef.current = null;
                 if (objectUrlRef.current) {
                     URL.revokeObjectURL(objectUrlRef.current);
                     objectUrlRef.current = null;
@@ -66,13 +84,13 @@ export const EmberPlayer = forwardRef<EmberPlayerRef, EmberPlayerProps>(
         // Native media requests cannot attach the Bearer token used by the API.
         // Prefer cookie-backed streaming, but recover if an older login has no access cookie.
         const handleAudioError = async () => {
-            if (!audioId || src || fallbackStartedRef.current) {
+            if (!audioId || (src && src.split("?")[0] !== `/api/v1/transcription/${audioId}/audio`) || fallbackStartedRef.current) {
                 setError("Unable to load audio stream.");
                 return;
             }
             fallbackStartedRef.current = true;
             try {
-                const response = await fetch(`/api/v1/transcription/${audioId}/audio`, {
+                const response = await fetch(src || `/api/v1/transcription/${audioId}/audio`, {
                     headers: getAuthHeaders(),
                     credentials: "include",
                 });
@@ -86,9 +104,10 @@ export const EmberPlayer = forwardRef<EmberPlayerRef, EmberPlayerProps>(
             }
         };
 
+        useEffect(() => { if (disabled) audioRef.current?.pause(); }, [disabled]);
         // --- 3. Audio Handlers ---
         const togglePlay = () => {
-            if (!audioRef.current) return;
+            if (disabled || !audioRef.current) return;
             if (isPlaying) {
                 audioRef.current.pause();
             } else {
@@ -108,22 +127,28 @@ export const EmberPlayer = forwardRef<EmberPlayerRef, EmberPlayerProps>(
         };
 
         const handleLoadedMetadata = () => {
-            if (audioRef.current) {
-                setDuration(audioRef.current.duration);
-                setError(null);
+            const audio = audioRef.current;
+            if (!audio) return;
+            if (isKnownDuration(audio.duration)) {
+                setDuration(audio.duration);
+            } else if (audio.duration === Infinity && !durationRecoveryRef.current && audio.currentSrc) {
+                durationRecoveryRef.current = recoverMediaDuration(audio.currentSrc, setDuration);
             }
+            setError(null);
         };
 
         // --- 4. Advanced Scrubber Logic ---
         const calculateTimeFromEvent = useCallback((e: React.MouseEvent | MouseEvent) => {
-            if (!progressRef.current || !duration) return 0;
+            if (!progressRef.current || !isKnownDuration(duration)) return 0;
             const rect = progressRef.current.getBoundingClientRect();
+            if (rect.width <= 0) return 0;
             let x = e.clientX - rect.left;
             x = Math.max(0, Math.min(x, rect.width));
             return (x / rect.width) * duration;
         }, [duration]);
 
         const handleScrubberMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+            if (disabled || !isKnownDuration(duration)) return;
             setIsDragging(true);
             const time = calculateTimeFromEvent(e);
             if (audioRef.current) {
@@ -160,8 +185,9 @@ export const EmberPlayer = forwardRef<EmberPlayerRef, EmberPlayerProps>(
         }, [isDragging, calculateTimeFromEvent, onTimeUpdate]);
 
         const handleHoverMove = (e: React.MouseEvent<HTMLDivElement>) => {
-            if (!progressRef.current || !duration) return;
+            if (!progressRef.current || !isKnownDuration(duration)) return;
             const rect = progressRef.current.getBoundingClientRect();
+            if (rect.width <= 0) return;
             const x = e.clientX - rect.left;
             const percent = Math.min(Math.max(0, x / rect.width), 1);
             setHoverTime(percent * duration);
@@ -173,14 +199,8 @@ export const EmberPlayer = forwardRef<EmberPlayerRef, EmberPlayerProps>(
         }, [isPlaying, onPlayStateChange]);
 
 
-        const formatTime = (time: number) => {
-            if (isNaN(time)) return "00:00";
-            const min = Math.floor(time / 60);
-            const sec = Math.floor(time % 60);
-            return `${min.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
-        };
-
-        const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+        const formatTime = formatMediaTime;
+        const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
         const hoverPercent = duration > 0 ? hoverTime / duration : 0;
 
         if (error) {
@@ -218,7 +238,8 @@ export const EmberPlayer = forwardRef<EmberPlayerRef, EmberPlayerProps>(
                     {/* Top Row: Button & Time */}
                     <div className="flex items-center justify-between">
                         <button
-                            onClick={togglePlay}
+                            aria-label={t(isPlaying ? "Pause" : "Play")}
+                            disabled={disabled} onClick={togglePlay}
                             className="flex h-12 w-12 items-center justify-center rounded-full bg-[image:var(--brand-gradient)] text-white shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all focus:outline-none cursor-pointer"
                         >
                             {isPlaying ? (
@@ -233,7 +254,7 @@ export const EmberPlayer = forwardRef<EmberPlayerRef, EmberPlayerProps>(
                                 {formatTime(currentTime)}{" "}
                                 <span className="text-[var(--text-tertiary)] mx-0.5">/</span>{" "}
                                 <span className="text-[var(--text-tertiary)]">
-                                    {formatTime(duration)}
+                                    {duration > 0 ? formatTime(duration) : "--:--"}
                                 </span>
                             </span>
                             <span className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase tracking-widest mt-0.5 opacity-80">
@@ -297,6 +318,7 @@ export const EmberPlayer = forwardRef<EmberPlayerRef, EmberPlayerProps>(
                     onPause={() => setIsPlaying(false)}
                     onTimeUpdate={handleTimeUpdate}
                     onLoadedMetadata={handleLoadedMetadata}
+                    onDurationChange={handleLoadedMetadata}
                     onEnded={() => setIsPlaying(false)}
                     onError={handleAudioError}
                 />

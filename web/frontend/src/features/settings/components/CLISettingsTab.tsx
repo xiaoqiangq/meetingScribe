@@ -32,7 +32,7 @@ export function CLISettingsTab() {
             <div className="bg-[var(--bg-main)]/50 rounded-[var(--radius-card)] shadow-sm border border-[var(--border-subtle)] overflow-hidden">
                 <div className="p-6">
                     <h2 className="text-xl font-bold text-[var(--text-primary)] mb-4">{translateUI("Installation")}</h2>
-                    <p className="text-[var(--text-secondary)] mb-6">{translateUI("Run this command in your terminal to install the Scriberr CLI. This script will automatically detect your OS and architecture.")}</p>
+                    <p className="text-[var(--text-secondary)] mb-6">{translateUI("Run this command in your terminal to install the MeetingScribe CLI. This script will automatically detect your OS and architecture.")}</p>
 
                     <div className="relative">
                         <div className="bg-[#0f172a] rounded-lg p-4 pr-24 font-mono text-sm text-gray-300 overflow-x-auto border border-[var(--border-subtle)]">

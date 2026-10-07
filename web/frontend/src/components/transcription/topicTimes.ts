@@ -16,3 +16,16 @@ export function formatTopicTime(seconds: number): string {
   const total = Math.round(seconds);
   return `${Math.floor(total / 3600).toString().padStart(2, '0')}:${Math.floor(total % 3600 / 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}`;
 }
+
+export function validateTopicTimes(text: string, duration?: number): { points: number[]; error?: string; outside?: { index: number; point: number; duration: number } } {
+  try {
+    const points = parseTopicTimes(text);
+    if (duration !== undefined && Number.isFinite(duration) && duration > 0) {
+      const index = points.findIndex(point => point >= duration);
+      if (index >= 0) return { points: [], outside: { index: index + 1, point: points[index], duration } };
+    }
+    return { points };
+  } catch (error) {
+    return { points: [], error: error instanceof Error ? error.message : '时间格式应为 MM:SS 或 HH:MM:SS' };
+  }
+}

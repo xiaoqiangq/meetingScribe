@@ -1,8 +1,8 @@
-# Huiji P: strengths and practical limits
+# MeetingScribe: strengths and practical limits
 
 [简体中文](ADVANTAGES.md) · [Home](../README.md) · [Full pipeline](ARCHITECTURE.en.md)
 
-Huiji P connects transcription, speaker timelines, timed playback and meeting minutes in a reviewable workflow. It targets Chinese meetings, long recordings with changing participants, and sessions where people need to confirm speaker identities.
+MeetingScribe connects transcription, speaker timelines, timed playback and meeting minutes in a reviewable workflow. It targets Chinese meetings, long recordings with changing participants, and sessions where people need to confirm speaker identities.
 
 ## 1. Complementary speech models
 
@@ -58,8 +58,8 @@ Speech processing and native-feature ranking run locally. Minutes use a configur
 
 ## Evidence and performance
 
-NVIDIA reports AliMeeting near/far DER of 6.40%/10.47% at its 30.4-second latency setting, on meetings with 2–4 speakers. These are model benchmarks, not Huiji P results or evidence of eight-person accuracy. That latency setting is not the total recording processing time. [Official evaluation](https://huggingface.co/nvidia/Nemotron-3-Diarization)
+NVIDIA reports AliMeeting near/far DER of 6.40%/10.47% at its 30.4-second latency setting, on meetings with 2–4 speakers. These are model benchmarks, not MeetingScribe results or evidence of eight-person accuracy. That latency setting is not the total recording processing time. [Official evaluation](https://huggingface.co/nvidia/Nemotron-3-Diarization)
 
 The Chinese pipeline has run on an A100 deployment. GitHub CI passes application checks and Docker builds. Whole-application speed, cross-topic accuracy and matched commercial comparisons have not been systematically measured. Independent fresh-GPU installation and business acceptance remain pending. See [Validation](VALIDATION.en.md).
 
-**Huiji P's strength is a Chinese long-meeting workflow that combines established models with timed review, confirmed identities and minutes history.**
+**MeetingScribe's strength is a Chinese long-meeting workflow that combines established models with timed review, confirmed identities and minutes history.**
