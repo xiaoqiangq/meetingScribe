@@ -7,7 +7,8 @@ Qwen3-ASR-1.7B 权重，通过独立 vLLM 环境调用官方流式 API；说话�
 
 ## 页面与麦克风
 
-「添加音频 → 实时转写」打开独立的 `/live` 页面。开始前可选择输入设备；
+「添加音频 → 实时转写」打开独立的 `/live` 页面。直接打开或刷新 `/live`
+返回同一前端页面；服务器存活检查使用 `/health/live`。开始前可选择输入设备；
 系统默认选项遵循浏览器与操作系统的默认麦克风。获得权限后显示设备名称，
 录音时显示实际使用的设备与输入音量。设备列表随设备插拔更新。
 
@@ -106,7 +107,19 @@ ForcedAligner 只加载一份；VAD 进程不加载其权重。
 
 配置示例见 [realtime.env.example](../deploy/realtime.env.example)。服务通过
 `python runtime/realtime/service.py` 启动，只监听 `127.0.0.1`。Go 服务需要
-`MEETINGSCRIBE_REALTIME_URL`；未配置或模型未就绪时入口提示尚未就绪。
+`MEETINGSCRIBE_REALTIME_URL`；未配置或网关不可达时入口提示尚未就绪。
+网关本身不加载 GPU 模型。点击开始后，网关启动独立的 `model_service.py` 进程，
+加载并预热 Qwen/vLLM、Nemotron、VAD 与对齐器，完成后才开始采集录音。
+页面显示加载提示，需等到“正在聆听”后再讲话；打开页面或查询状态不会加载模型。
+冷启动默认最多等待 480 秒，Go 启动请求上限 600 秒，启动期间续期 GPU 准入租约。
+结束或取消后默认空闲 300 秒退出整个模型进程组，释放 CUDA 上下文；短时间内
+再次开始可复用模型。录音、最终处理和有心跳的暂停不会因空闲计时而卸载。
+浏览器失联超过 120 秒会取消会话，再进入空闲倒计时；已保存音频和文字保留。
+`REALTIME_IDLE_SECONDS` 和 `REALTIME_LOAD_SECONDS` 可配置以上等待时间；
+模型子服务使用独立的 loopback 端口 `REALTIME_MODEL_PORT`，默认网关端口加一。
+状态返回 `model_state`（cold/loading/ready/stopping/error）与 `models_loaded`；
+`available` 表示网关支持发起会话，冷态也为 true，不代表模型已经在显存中。
+上传转写仍按任务加载，冷启动完成不表示两条路径共用模型实例。
 浏览器麦克风需要 HTTPS 或 localhost 安全上下文。
 
 首版限制一个实时会话、单次最长 30 分钟。普通任务已经排队或运行时，实时

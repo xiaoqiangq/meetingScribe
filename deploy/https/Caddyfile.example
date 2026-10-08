@@ -1,0 +1,28 @@
+{
+    admin off
+    auto_https disable_redirects
+    skip_install_trust
+    pki {
+        ca local {
+            name "MeetingScribe Internal HTTPS CA"
+        }
+    }
+    servers {
+        protocols h1 h2
+        timeouts {
+            read_header 10s
+            read_body 0
+            read_body_idle 0
+            write 0
+            write_idle 0
+        }
+    }
+}
+
+https://{$MEETINGSCRIBE_HTTPS_HOST}:{$MEETINGSCRIBE_HTTPS_PORT:8443} {
+    bind {$MEETINGSCRIBE_HTTPS_HOST}
+    tls internal
+    reverse_proxy {$MEETINGSCRIBE_HTTP_UPSTREAM} {
+        flush_interval -1
+    }
+}

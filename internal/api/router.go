@@ -73,7 +73,9 @@ func SetupRoutes(handler *Handler, authService *auth.AuthService) *gin.Engine {
 
 	// Health check endpoint (no auth required)
 	router.GET("/health", handler.HealthCheck)
-	router.GET("/live", func(c *gin.Context) { c.JSON(200, gin.H{"status": "alive", "version": "reliability-v18"}) })
+	// /live belongs to the realtime SPA. Keep probes in the health namespace
+	// so direct navigation and refresh reach the same page on every origin.
+	router.GET("/health/live", func(c *gin.Context) { c.JSON(200, gin.H{"status": "alive", "version": "reliability-v18"}) })
 
 	// CLI install script alias (root level for easier access)
 	router.GET("/install.sh", handler.GetInstallScript)

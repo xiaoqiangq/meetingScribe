@@ -605,5 +605,8 @@
   "Final processing timed out. Saved audio and text are retained.": "最终处理超时，已保存的录音与文字会保留。",
   "A new version is available. Finish recording and download your audio before refreshing. Recording will not be interrupted.": "有新版本可用。请先结束录音并下载备份，再刷新页面。当前录音不会因此中断。",
   "Some text follows the previous speaker for reading; speaker assignment needs review.": "部分文字沿用前一说话人以保持阅读连贯，身份仍待核对。",
-  "Contains speaker assignments needing review": "包含说话人待核对文字"
+  "Contains speaker assignments needing review": "包含说话人待核对文字",
+  "Loading speech models…": "正在加载语音模型…",
+  "Speech models load when you start": "语音模型将在开始时加载",
+  "Preparing speech models. Loading may take several minutes. Wait until Listening before speaking.": "正在准备语音模型，加载可能需要几分钟。请等到显示“正在聆听”后再讲话。"
 }

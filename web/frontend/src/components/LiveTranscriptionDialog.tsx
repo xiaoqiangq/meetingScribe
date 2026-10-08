@@ -29,6 +29,7 @@ export function LiveTranscriptionPage() {
   const [refineLoading,setRefineLoading] = useState(false);
   const [outdated, setOutdated] = useState(false);
   const [available, setAvailable] = useState(false);
+  const [modelState, setModelState] = useState('');
   const [blob, setBlob] = useState<Blob | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState('default');
@@ -54,7 +55,7 @@ export function LiveTranscriptionPage() {
   const mounted = useRef(true);
 
   async function request(path: string, init: RequestInit = {}) {
-    const response = await fetch(`/api/v1/realtime${path}`, { ...init, signal: AbortSignal.timeout(65000), headers: { ...getAuthHeaders(), ...init.headers } });
+    const response = await fetch(`/api/v1/realtime${path}`, { ...init, signal: AbortSignal.timeout(path.startsWith('/sessions?') ? 610000 : 65000), headers: { ...getAuthHeaders(), ...init.headers } });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || data.detail || t('Realtime request failed'));
     return data;
@@ -162,12 +163,19 @@ export function LiveTranscriptionPage() {
 
   useEffect(() => {
     setAvailable(false);
-    void request('/status').then(data => setAvailable(data.available)).catch(() => setAvailable(false));
+    let disposed = false;
+    const checkStatus = () => {
+      void request('/status').then(data => {
+        if (!disposed) { setAvailable(data.available); setModelState(data.model_state || 'ready'); }
+      }).catch(() => { if (!disposed) setAvailable(false); });
+    };
+    checkStatus();
+    const statusTimer = window.setInterval(checkStatus, 5000);
     void refreshDevices().catch(() => {});
     const media = navigator.mediaDevices;
     const changed = () => { void refreshDevices().catch(() => {}); };
     media?.addEventListener("devicechange", changed);
-    return () => media?.removeEventListener("devicechange", changed);
+    return () => { disposed = true; clearInterval(statusTimer); media?.removeEventListener("devicechange", changed); };
     // Opening the page never activates the microphone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -225,6 +233,11 @@ export function LiveTranscriptionPage() {
       context.current = new AudioContext();
       await context.current.audioWorklet.addModule('/realtime-pcm.js');
       const data = await request('/sessions?autosave=1', { method: 'POST' });
+      if (!mounted.current) {
+        void request(`/sessions/${data.id}/cancel`, {method:'POST'}).catch(() => {});
+        stopTracks();
+        return;
+      }
       if (!data.job_id) throw new Error(t('Automatic project creation failed'));
       setJobId(data.job_id); navigate(`/live?project=${data.job_id}`,{replace:true});
       void queryClient.invalidateQueries({queryKey:['audioFiles']});
@@ -372,7 +385,8 @@ export function LiveTranscriptionPage() {
   const speakers = new Set(result?.segments.map(s => s.speaker).filter(Boolean));
   const statuses = {idle:'Ready', starting:'Connecting microphone…',recording:'Listening',paused:'Paused',finishing:'Confirming final transcript…',done:'Finished'};
   const controls = <section className="glass-card rounded-xl p-5 space-y-4">
-        <div className="flex flex-wrap justify-between gap-3"><strong>{t(statuses[phase])}</strong><span>{available ? t('GPU models ready') : t('Realtime models are not ready. Existing recording and upload remain available.')}</span></div>
+        <div className="flex flex-wrap justify-between gap-3"><strong>{t(statuses[phase])}</strong><span className={available && modelState !== 'ready' ? 'font-bold text-red-700 dark:text-red-300' : undefined}>{available ? t(modelState === 'ready' ? 'GPU models ready' : modelState === 'loading' ? 'Loading speech models…' : 'Speech models load when you start') : t('Realtime models are not ready. Existing recording and upload remain available.')}</span></div>
+        {phase === 'starting' && <p role="status" className="text-sm font-bold text-red-700 dark:text-red-300">{t('Preparing speech models. Loading may take several minutes. Wait until Listening before speaking.')}</p>}
         <label className="block text-sm font-medium" htmlFor="live-microphone">{t('Microphone')}</label>
         <select id="live-microphone" className="w-full border rounded-lg px-3 py-2 bg-background" value={deviceId} disabled={busy} onChange={e=>setDeviceId(e.target.value)}>
           <option value="default">{t('System default microphone')}</option>

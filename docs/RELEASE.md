@@ -4,7 +4,7 @@
 
 ## 版本与发布门槛
 
-当前候选为 `v0.1.0-rc.5`；完成全新 GPU 环境验收后才发布 `v0.1.0`。版本号描述 MeetingScribe，不沿用 Scriberr 的原版版本号。
+当前候选为 `v0.1.0-rc.6`；完成全新 GPU 环境验收后才发布 `v0.1.0`。版本号描述 MeetingScribe，不沿用 Scriberr 的原版版本号。
 
 - CI 必须在待发布提交上通过：前端测试/构建、Python 桥接测试、所选 Go 回归测试、Compose 配置和 Docker 构建。
 - GPU 验收报告必须记录提交、环境、模型 revision、真实短/长音频结果及峰值资源。

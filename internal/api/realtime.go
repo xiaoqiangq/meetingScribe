@@ -53,7 +53,12 @@ func liveCall(c *gin.Context, path string, body []byte) (int, []byte, error) {
 		return 503, nil, err
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
-	client := &http.Client{Timeout: 60 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+	timeout := 60 * time.Second
+	if path == "/sessions" {
+		// Cold starts load and warm all models before microphone recording begins.
+		timeout = 10 * time.Minute
+	}
+	client := &http.Client{Timeout: timeout, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
 	response, err := client.Do(req)
 	if err != nil {
 		return 503, nil, fmt.Errorf("realtime service unavailable")
@@ -103,7 +108,25 @@ func (h *Handler) StartRealtime(c *gin.Context) {
 		c.JSON(409, gin.H{"error": "GPU is busy with a transcription task; retry when it finishes"})
 		return
 	}
+	// Loading can exceed the normal 90-second lease. Keep ordinary uploads
+	// excluded throughout startup, including when the browser disconnects.
+	stopRenew, renewDone := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(renewDone)
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				h.taskQueue.RenewRealtime()
+			case <-stopRenew:
+				return
+			}
+		}
+	}()
 	code, data, err := liveCall(c, "/sessions", nil)
+	close(stopRenew)
+	<-renewDone
 	if err != nil || code != 200 {
 		h.taskQueue.ReleaseRealtime()
 		c.JSON(503, gin.H{"error": "Realtime models are unavailable or still loading"})

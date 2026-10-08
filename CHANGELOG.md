@@ -2,6 +2,14 @@
 
 [简体中文](CHANGELOG.zh-CN.md)
 
+## v0.1.0-rc.6 — 2026-10-08
+
+- Load realtime GPU models on demand behind a CPU gateway; reuse warm workers and release their process group after five idle minutes. Keep active and paused sessions alive through heartbeats.
+- Extend cold-start timeouts and renew GPU admission while loading. Show model readiness and red, bold loading guidance before microphone capture begins.
+- Add an independent HTTPS proxy template while keeping HTTP available. Internal IP certificates require trust on each client device.
+- Reserve `/live` for the realtime page and move process liveness to `/health/live`; existing readiness monitoring continues to use `/health`.
+- Validation: 51 realtime Python tests, 62 frontend tests, targeted realtime API/queue tests, frontend and Linux amd64 builds passed. Existing GPU deployment and all three entry points were verified; fresh GPU installation and long-meeting acceptance remain pending. Pre-release.
+
 ## v0.1.0-rc.5 — 2026-10-07
 
 - Queue realtime audio inference separately from receipt; run word alignment asynchronously with bounded backlogs and retain confirmed text on alignment failure.

@@ -1,0 +1,19 @@
+[Unit]
+Description=MeetingScribe independent HTTPS entry point
+After=network-online.target meeting-ai.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/meetingscribe-https
+Environment=XDG_DATA_HOME=/path/to/meetingscribe-https/state/data
+Environment=XDG_CONFIG_HOME=/path/to/meetingscribe-https/state/config
+ExecStart=/path/to/meetingscribe-https/caddy run --config /path/to/meetingscribe-https/caddy.json
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

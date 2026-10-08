@@ -1,114 +1,61 @@
-"""Loopback-only model service. Public authentication belongs to the Go API."""
-import asyncio
+"""Always-on CPU gateway with disposable, on-demand GPU model workers."""
 import os
 import threading
 
-from fastapi import FastAPI, HTTPException, Request
-from session import ProtocolError, Session
-from processor import Processor
+from fastapi import FastAPI, HTTPException, Request, Response
+from model_host import ModelHost
 
 app = FastAPI()
-lock = threading.Lock()
-session = None
-engine = None
-assistant = None
-aligner = None
+port = int(os.getenv("REALTIME_PORT", "18499"))
+host = ModelHost(idle_seconds=int(os.getenv("REALTIME_IDLE_SECONDS", "300")),
+                 load_seconds=int(os.getenv("REALTIME_LOAD_SECONDS", "480")),
+                 port=int(os.getenv("REALTIME_MODEL_PORT", str(port + 1))))
+if host.port == port:
+    raise ValueError("Realtime gateway and model ports must differ")
 
 
 @app.on_event("startup")
-def load_models():
-    global engine, assistant, aligner
-    from qwen_asr import Qwen3ASRModel
-    from worker_client import Worker
-    engine = Qwen3ASRModel.LLM(
-        model=os.environ["REALTIME_QWEN_MODEL"],
-        gpu_memory_utilization=0.15, max_model_len=4096,
-        max_new_tokens=256, enforce_eager=True,
-    )
-    try:
-        assistant = Worker()
-        aligner = Worker(python=os.environ["REALTIME_ALIGNER_PYTHON"], script="alignment.py", args=("--align-only",))
-        warm_models()
-    except Exception:
-        unload_models()
-        raise
-
-
-def warm_models():
-    # Warm kernels before reporting readiness; generated dummy text is discarded.
-    import numpy as np
-    warm_audio = np.zeros(16000, dtype=np.float32)
-    state = engine.init_streaming_state(chunk_size_sec=1.0)
-    engine.streaming_transcribe(warm_audio, state)
-    engine.finish_streaming_transcribe(state)
-    assistant.push(bytes(32000))
-    assistant.finish()
-    aligner.align(warm_audio, "测试", "Chinese", 0)
-    assistant.reset()
+def startup():
+    threading.Thread(target=host.monitor, daemon=True, name="model-idle-unload").start()
 
 
 @app.on_event("shutdown")
-def unload_models():
-    global assistant, engine, aligner
-    if session is not None and not session.closed:
-        session.control("cancel")
-    if aligner is not None:
-        aligner.close()
-        aligner = None
-    if assistant is not None:
-        assistant.close()
-        assistant = None
-    if engine is not None:
-        engine.model.llm_engine.engine_core.shutdown()
-        engine = None
+def shutdown():
+    host.close()
 
 
 @app.get("/status")
 def status():
-    return dict(available=engine is not None and not (session and session.failed), max_sessions=1, max_duration=1800)
+    return host.status()
+
+
+def forward(path, body=b""):
+    try:
+        code, data = host.call(path, body)
+        return Response(content=data, status_code=code, media_type="application/json")
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(503, "Realtime model operation failed; retry starting after checking the service") from exc
 
 
 @app.post("/sessions")
 def start():
-    global session
-    with lock:
-        if session and not session.closed and session.clock() - session.touched < 60:
-            raise HTTPException(409, "Another realtime session is active")
-        if session and not session.closed:
-            session.control("cancel")
-        if session and (session.thread.is_alive() or session.failed):
-            # Do not reset shared models while an expired inference is still running.
-            raise HTTPException(409, "Previous session is still shutting down; restart model service after inference failure")
-        session = Processor(Session(engine, assistant, aligner=aligner))
-        return session.result()
+    return forward("/sessions")
 
 
 @app.post("/sessions/{identifier}/{action}")
 async def update(identifier: str, action: str, request: Request):
-    # Read the bounded body before taking the inference lock.
+    import asyncio
     body = bytearray()
     async for chunk in request.stream():
         body.extend(chunk)
         if len(body) > 64000:
             raise HTTPException(413, "PCM chunk too large")
-    with lock:
-        current = session
-        if not current or current.id != identifier:
-            raise HTTPException(404, "Unknown realtime session")
-    try:
-        if action == "chunk":
-            return current.push(int(request.query_params["sequence"]), bytes(body))
-        if action in ("finish", "pause", "cancel"):
-            return await asyncio.to_thread(current.control, action)
-        if action in ("heartbeat", "result"):
-            return current.control(action)
-        raise ProtocolError("Unknown action")
-    except (ProtocolError, ValueError, KeyError) as exc:
-        raise HTTPException(409, str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(503, "Model operation failed or timed out; saved audio and text retained") from exc
+    query = "?" + str(request.query_params) if request.query_params else ""
+    return await asyncio.to_thread(forward, f"/sessions/{identifier}/{action}" + query, bytes(body))
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=int(os.getenv("REALTIME_PORT", "18499")))
+    uvicorn.run(app, host="127.0.0.1", port=port)

@@ -4,7 +4,7 @@
 
 ## Versioning and release gates
 
-The current candidate is `v0.1.0-rc.5`; promote to `v0.1.0` only after fresh GPU acceptance. Versions identify MeetingScribe rather than inheriting the upstream Scriberr version.
+The current candidate is `v0.1.0-rc.6`; promote to `v0.1.0` only after fresh GPU acceptance. Versions identify MeetingScribe rather than inheriting the upstream Scriberr version.
 
 - CI must pass on the candidate commit: frontend tests/build, Python bridge tests, selected Go checks, Compose validation and Docker build.
 - GPU acceptance must record the commit, environment, model revisions, real short/long recording results and peak resources.
