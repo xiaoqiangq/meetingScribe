@@ -40,8 +40,12 @@ export function CLIAuthConfirmation() {
                 setLoading(false);
             }
         };
-        if (!callbackUrl) {
-            setError('Invalid request: Missing callback URL.');
+        let valid = false;
+        try { const target = new URL(callbackUrl || ''); const port = Number(target.port);
+          valid = target.protocol === 'http:' && ['localhost','127.0.0.1','[::1]'].includes(target.hostname) && port >= 1024 && port <= 65535 && !target.username && !target.password && !target.hash && !target.searchParams.has('token') && !target.searchParams.has('username');
+        } catch { /* Reject malformed callback addresses before approval. */ }
+        if (!valid) {
+            setError('CLI callback must be an HTTP loopback listener with an explicit port.');
             setLoading(false);
             return;
         }
@@ -111,6 +115,7 @@ export function CLIAuthConfirmation() {
                         <span className="font-bold">{deviceName}</span>{translateUI("wants to access your account")}<span className="font-bold">{user?.username}</span>.
                     </p>
 
+                    <p className="mb-6 break-all text-sm text-muted-foreground">{translateUI("Local CLI callback")}: {callbackUrl}</p>
                     <div className="flex flex-col gap-3">
                         <Button variant="brand" onClick={handleApprove} disabled={processing} className="w-full">
                             {processing ? 'Authorizing...' : 'Approve'}

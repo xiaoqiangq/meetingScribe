@@ -39,6 +39,11 @@ def forward(path, body=b""):
         raise HTTPException(503, "Realtime model operation failed; retry starting after checking the service") from exc
 
 
+@app.post("/reset")
+def reset():
+    return host.reset()
+
+
 @app.post("/sessions")
 def start():
     return forward("/sessions")

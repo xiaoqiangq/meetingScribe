@@ -1,4 +1,5 @@
 """CPU-only lifecycle manager; exiting the child releases all CUDA contexts."""
+from limits import MAX_DURATION_SECONDS
 import json
 import os
 from pathlib import Path
@@ -30,7 +31,7 @@ class ModelHost:
         # Never wait for the loading lock or load models merely to check status.
         return dict(available=True, model_state=self.state,
                     models_loaded=self.state == "ready", idle_unload_seconds=self.idle_seconds,
-                    max_sessions=1, max_duration=1800)
+                    max_sessions=1, max_duration=MAX_DURATION_SECONDS)
 
     def _request(self, path, body=None, timeout=60):
         request = urllib.request.Request(f"http://127.0.0.1:{self.port}" + path,
@@ -121,6 +122,13 @@ class ModelHost:
                     if reply.get("finished") or reply.get("cancelled") or path.endswith("/cancel"):
                         self.active_id = None
             return code, data
+
+    def reset(self):
+        # Wait for any loading/request thread, then kill its whole GPU group.
+        # A successful response lets the web server safely admit offline work.
+        with self.lock:
+            self._stop()
+        return dict(reset=True)
 
     def reap(self):
         with self.lock:

@@ -143,12 +143,21 @@ func (tq *TaskQueue) Stop() {
 
 // EnqueueJob adds a job to the queue
 func (tq *TaskQueue) EnqueueJob(jobID string) error {
+	return tq.EnqueuePrepared(jobID, nil)
+}
+
+// EnqueuePrepared checks admission before changing the project. The worker can
+// only receive the job after preparation succeeds, under the same admission lock.
+func (tq *TaskQueue) EnqueuePrepared(jobID string, prepare func() error) error {
 	tq.admissionMutex.Lock()
 	defer tq.admissionMutex.Unlock()
 	if time.Now().Before(tq.realtimeUntil) {
 		return fmt.Errorf("realtime microphone session is active; retry after it finishes")
 	}
 	if tq.admitted[jobID] {
+		if prepare != nil {
+			return fmt.Errorf("job is already queued")
+		}
 		return nil
 	}
 
@@ -168,6 +177,9 @@ func (tq *TaskQueue) EnqueueJob(jobID string) error {
 		if v, e := strconv.Atoi(os.Getenv("USER_ACTIVE_JOB_LIMIT")); e == nil && v > 0 {
 			limit = v
 		}
+		if prepare != nil && job.Status != models.StatusPending && job.Status != models.StatusProcessing {
+			count++
+		}
 		if count > int64(limit) {
 			return fmt.Errorf("user has too many active jobs (limit %d)", limit)
 		}
@@ -177,6 +189,15 @@ func (tq *TaskQueue) EnqueueJob(jobID string) error {
 	case <-tq.ctx.Done():
 		return fmt.Errorf("queue is shutting down")
 	default:
+	}
+
+	if len(tq.jobChannel) == cap(tq.jobChannel) {
+		return fmt.Errorf("queue is full")
+	}
+	if prepare != nil {
+		if err := prepare(); err != nil {
+			return err
+		}
 	}
 
 	select {
@@ -237,8 +258,14 @@ func (tq *TaskQueue) worker(id int) {
 			logger.WorkerOperation(id, jobID, "start")
 
 			// Update job status to processing
-			if err := tq.updateJobStatus(jobID, models.StatusProcessing); err != nil {
+			if err := tq.startJobStatus(jobID); err != nil {
 				logger.Error("Failed to update job status", "worker_id", id, "job_id", jobID, "error", err)
+				// Always release admission, even before a process is registered.
+				tq.admissionMutex.Lock()
+				delete(tq.admitted, jobID)
+				_ = tq.updateJobStatus(jobID, models.StatusFailed)
+				_ = tq.updateJobError(jobID, "Failed to start task: "+err.Error())
+				tq.admissionMutex.Unlock()
 				continue
 			}
 
@@ -304,6 +331,24 @@ func (tq *TaskQueue) worker(id int) {
 			return
 		}
 	}
+}
+
+// Short retries absorb transient SQLite contention without losing a dequeued job.
+func (tq *TaskQueue) startJobStatus(id string) error {
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		if err = tq.updateJobStatus(id, models.StatusProcessing); err == nil {
+			return nil
+		}
+		if attempt < 2 {
+			select {
+			case <-tq.ctx.Done():
+				return tq.ctx.Err()
+			case <-time.After(time.Duration(attempt+1) * 100 * time.Millisecond):
+			}
+		}
+	}
+	return err
 }
 
 // KillJob aggressively terminates a running job

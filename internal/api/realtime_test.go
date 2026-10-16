@@ -4,10 +4,15 @@ import (
 	"bytes"
 	"context"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"scriberr/internal/config"
+	"scriberr/internal/database"
 	"scriberr/internal/models"
 	"scriberr/internal/queue"
 	"scriberr/internal/repository"
@@ -28,12 +33,14 @@ func TestRealtimeURLRejectsNonLoopback(t *testing.T) {
 
 type liveTestFiles struct {
 	service.FileService
-	saves int
+	saves     int
+	directory string
 }
 
-func (f *liveTestFiles) SaveUpload(_ *multipart.FileHeader, _ string) (string, error) {
+func (f *liveTestFiles) SaveUpload(_ *multipart.FileHeader, dir string) (string, error) {
 	f.saves++
-	return "test-live-id.webm", nil
+	f.directory = dir
+	return filepath.Join(dir, "test-live-id.webm"), nil
 }
 
 type liveTestJobs struct {
@@ -47,9 +54,29 @@ func (r *liveTestJobs) Create(_ context.Context, j *models.TranscriptionJob) err
 }
 
 func TestRealtimeSaveUsesServerResultAndDoesNotRequeue(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, _ := db.DB()
+	defer conn.Close()
+	conn.SetMaxOpenConns(1)
+	if err := db.AutoMigrate(&models.User{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.User{ID: 1, Username: "owner", Password: "test"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	previous := database.DB
+	database.DB = db
+	defer func() { database.DB = previous }()
+	root, err := os.MkdirTemp("", "meetingscribe-legacy-live-save-")
+	if err != nil {
+		t.Fatal(err)
+	}
 	files, jobs := &liveTestFiles{}, &liveTestJobs{}
 	trusted := `{"text":"server transcript","segments":[]}`
-	h := &Handler{config: &config.Config{}, fileService: files, jobRepo: jobs,
+	h := &Handler{config: &config.Config{UploadDir: root}, fileService: files, jobRepo: jobs,
 		liveFinished: map[string]*liveSession{"live-id": {ID: "live-id", Owner: 1, Finished: true, Result: []byte(trusted)}}}
 	router := gin.New()
 	owner := uint(2)
@@ -78,6 +105,9 @@ func TestRealtimeSaveUsesServerResultAndDoesNotRequeue(t *testing.T) {
 	}
 	if jobs.saved.Status != models.StatusCompleted || jobs.saved.OwnerID != 1 || *jobs.saved.Transcript != trusted {
 		t.Fatal("saved result or ownership was altered")
+	}
+	if files.directory != filepath.Join(root, "owner") {
+		t.Fatal("legacy live save bypassed user directory")
 	}
 	if invoke() != 200 || files.saves != 1 {
 		t.Fatal("save retry created a duplicate recording")

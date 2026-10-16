@@ -1,4 +1,5 @@
 """Disposable GPU model process. Started on demand by service.py."""
+from limits import MAX_DURATION_SECONDS
 import asyncio
 import os
 import threading
@@ -65,7 +66,7 @@ def unload_models():
 
 @app.get("/status")
 def status():
-    return dict(available=engine is not None and not (session and session.failed), max_sessions=1, max_duration=1800,
+    return dict(available=engine is not None and not (session and session.failed), max_sessions=1, max_duration=MAX_DURATION_SECONDS,
                 model_instance=os.environ.get("REALTIME_MODEL_INSTANCE"))
 
 

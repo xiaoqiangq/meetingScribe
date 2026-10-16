@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"scriberr/internal/models"
 	"time"
 
@@ -24,6 +25,12 @@ func NewUserRepository(db *gorm.DB) UserRepository {
 	return &userRepository{
 		BaseRepository: NewBaseRepository[models.User](db),
 	}
+}
+
+// Account preference/name updates must not clear a concurrently reserved upload
+// namespace from a stale User struct. Storage alone assigns this field.
+func (r *userRepository) Update(ctx context.Context, user *models.User) error {
+	return r.db.WithContext(ctx).Omit("UploadDirectory").Save(user).Error
 }
 
 func (r *userRepository) FindByUsername(ctx context.Context, username string) (*models.User, error) {
@@ -63,6 +70,8 @@ type JobRepository interface {
 	FindLatestCompletedExecution(ctx context.Context, jobID string) (*models.TranscriptionJobExecution, error)
 	ListWithParams(ctx context.Context, offset, limit int, sortBy, sortOrder, searchQuery string, updatedAfter *time.Time) ([]models.TranscriptionJob, int64, error)
 	ListByUser(ctx context.Context, userID uint, offset, limit int) ([]models.TranscriptionJob, int64, error)
+	UpdateTitle(ctx context.Context, jobID string, title string) error
+	PrepareTranscription(ctx context.Context, job *models.TranscriptionJob) error
 	UpdateTranscript(ctx context.Context, jobID string, transcript string) error
 	UpdateRealtime(ctx context.Context, jobID string, transcript string, audioBytes int64, status models.JobStatus, message string) error
 	CreateExecution(ctx context.Context, execution *models.TranscriptionJobExecution) error
@@ -165,6 +174,49 @@ func (r *jobRepository) ListWithParams(ctx context.Context, offset, limit int, s
 
 func (r *jobRepository) ListByUser(ctx context.Context, userID uint, offset, limit int) ([]models.TranscriptionJob, int64, error) {
 	return r.ListWithParams(models.WithRequestOwner(ctx, userID), offset, limit, "", "", "", nil)
+}
+
+// UpdateTitle must never write a stale snapshot over inference checkpoints.
+func (r *jobRepository) UpdateTitle(ctx context.Context, id string, title string) error {
+	query := r.db.WithContext(ctx).Model(&models.TranscriptionJob{}).Where("id = ?", id)
+	if owner, ok := models.RequestOwner(ctx); ok {
+		query = query.Where("owner_id = ?", owner)
+	}
+	result := query.Update("title", title)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// PrepareTranscription preserves the last successful result until a replacement
+// is available. Select embedded parameter columns explicitly, including zeros.
+func (r *jobRepository) PrepareTranscription(ctx context.Context, job *models.TranscriptionJob) error {
+	stmt := &gorm.Statement{DB: r.db}
+	if err := stmt.Parse(job); err != nil {
+		return err
+	}
+	columns := []string{"status", "diarization", "error_message"}
+	for _, field := range stmt.Schema.Fields {
+		if len(field.BindNames) > 0 && field.BindNames[0] == "Parameters" {
+			columns = append(columns, field.DBName)
+		}
+	}
+	query := r.db.WithContext(ctx).Model(&models.TranscriptionJob{}).Where("id = ? AND status IN ?", job.ID, []models.JobStatus{models.StatusUploaded, models.StatusCompleted, models.StatusFailed})
+	if owner, ok := models.RequestOwner(ctx); ok {
+		query = query.Where("owner_id = ?", owner)
+	}
+	result := query.Select(columns).Updates(job)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return fmt.Errorf("project changed or is already queued; refresh before retrying")
+	}
+	return nil
 }
 
 func (r *jobRepository) UpdateTranscript(ctx context.Context, jobID string, transcript string) error {

@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"scriberr/internal/audio"
 	"scriberr/internal/auth"
 	"scriberr/internal/config"
 	"scriberr/internal/models"
@@ -290,7 +291,10 @@ func (h *Handler) UploadAudio(c *gin.Context) {
 	}
 
 	// Save file using FileService
-	uploadDir := h.config.UploadDir
+	uploadDir, ok := h.uploadDirectory(c)
+	if !ok {
+		return
+	}
 	filePath, err := h.fileService.SaveUpload(header, uploadDir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
@@ -398,7 +402,10 @@ func (h *Handler) UploadVideo(c *gin.Context) {
 	}
 
 	// Save file using FileService
-	uploadDir := h.config.UploadDir
+	uploadDir, ok := h.uploadDirectory(c)
+	if !ok {
+		return
+	}
 	videoPath, err := h.fileService.SaveUpload(header, uploadDir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
@@ -496,73 +503,114 @@ func (h *Handler) UploadVideo(c *gin.Context) {
 // @Security ApiKeyAuth
 // @Security BearerAuth
 func (h *Handler) UploadMultiTrack(c *gin.Context) {
-	// Parse multipart form
 	form, err := c.MultipartForm()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse multipart form"})
+		c.JSON(400, gin.H{"error": "Failed to parse multipart form"})
 		return
 	}
-
 	files := form.File["files"]
 	if len(files) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No files uploaded"})
+		files = form.File["tracks"]
+	} // compatibility with older pages
+	if len(files) == 0 {
+		c.JSON(400, gin.H{"error": "No files uploaded"})
 		return
 	}
-
-	// Create a unique job ID
-	jobID := uuid.New().String()
-	uploadDir := h.config.UploadDir
-
-	// Create job directory
-	jobDir := filepath.Join(uploadDir, jobID)
-	if err := h.fileService.CreateDirectory(jobDir); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create job directory"})
+	if len(form.File["aup"]) > 1 {
+		c.JSON(400, gin.H{"error": "Only one AUP project is supported"})
 		return
 	}
-
-	var trackFiles []models.MultiTrackFile
-
-	// Process each file
-	for i, fileHeader := range files {
-		// Save file using FileService
-		filePath, err := h.fileService.SaveUpload(fileHeader, jobDir)
-		if err != nil {
-			// Cleanup
-			_ = h.fileService.RemoveDirectory(jobDir)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to save file %s", fileHeader.Filename)})
+	names := map[string]bool{}
+	for _, f := range files {
+		if names[f.Filename] {
+			c.JSON(400, gin.H{"error": "Track filenames must be unique"})
 			return
 		}
-
-		// Create track record
-		trackFiles = append(trackFiles, models.MultiTrackFile{
-			TranscriptionJobID: jobID,
-			FilePath:           filePath,
-			FileName:           fileHeader.Filename,
-			TrackIndex:         i,
-		})
+		names[f.Filename] = true
 	}
-
-	// Create job record
-	job := models.TranscriptionJob{
-		ID:              jobID,
-		Status:          models.StatusUploaded,
-		IsMultiTrack:    true,
-		MultiTrackFiles: trackFiles,
-	}
-
-	if title := c.PostForm(paramTitle); title != "" {
-		job.Title = &title
-	} else {
-		defaultTitle := fmt.Sprintf("Multi-track Job %s", jobID)
-		job.Title = &defaultTitle
-	}
-
-	// Save to database
-	if err := h.jobRepo.Create(c.Request.Context(), &job); err != nil {
-		_ = h.fileService.RemoveDirectory(jobDir)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create job"})
+	jobID := uuid.NewString()
+	uploadDir, ok := h.uploadDirectory(c)
+	if !ok {
 		return
 	}
+	jobDir := filepath.Join(uploadDir, jobID)
+	if err := h.fileService.CreateDirectory(jobDir); err != nil {
+		c.JSON(500, gin.H{"error": "Failed to create job directory"})
+		return
+	}
+	job := models.TranscriptionJob{ID: jobID, Status: models.StatusUploaded, IsMultiTrack: true, MultiTrackFolder: &jobDir}
+	aupTracks := map[string]audio.AupTrack{}
+	if projects := form.File["aup"]; len(projects) == 1 {
+		path, err := h.fileService.SaveUpload(projects[0], jobDir)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to save AUP project"})
+			return
+		}
+		tracks, err := audio.NewAupParser().ParseAupFile(path)
+		if err != nil || len(tracks) == 0 {
+			_ = h.fileService.RemoveFile(path) // one explicitly known ordinary file
+			c.JSON(400, gin.H{"error": "Invalid AUP project or no imported tracks"})
+			return
+		}
+		for _, track := range tracks {
+			name := filepath.Base(track.Filename)
+			if _, duplicate := aupTracks[name]; duplicate {
+				_ = h.fileService.RemoveFile(path)
+				c.JSON(400, gin.H{"error": "Repeated clips for the same file are not supported"})
+				return
+			}
+			aupTracks[name] = track
+		}
+		for name := range names {
+			if _, found := aupTracks[name]; !found {
+				_ = h.fileService.RemoveFile(path)
+				c.JSON(400, gin.H{"error": "Uploaded track missing from AUP project"})
+				return
+			}
+		}
+		job.AupFilePath = &path
+		if h.multiTrackProcessor != nil {
+			job.MergeStatus = "pending"
+		}
+	}
+	for i, f := range files {
+		path, err := h.fileService.SaveUpload(f, jobDir)
+		if err != nil {
+			// Retain partial uploads for inspection; never recursively remove a folder.
+			logger.Error("Partial multi-track upload retained", "job_id", jobID, "error", err)
+			c.JSON(500, gin.H{"error": "Failed to save track"})
+			return
+		}
+		track := models.MultiTrackFile{TranscriptionJobID: jobID, FilePath: path, FileName: f.Filename, TrackIndex: i, Gain: 1}
+		if settings, found := aupTracks[f.Filename]; found {
+			track.Offset = settings.Offset
+			track.Gain = settings.Gain
+			track.Pan = settings.Pan
+			track.Mute = settings.Mute == 1
+		}
+		job.MultiTrackFiles = append(job.MultiTrackFiles, track)
+	}
+	job.AudioPath = job.MultiTrackFiles[0].FilePath
+	title := c.PostForm(paramTitle)
+	if title == "" {
+		title = "Multi-track Job " + jobID
+	}
+	job.Title = &title
+	if err := h.jobRepo.Create(c.Request.Context(), &job); err != nil {
+		logger.Error("Multi-track files retained after database error", "job_id", jobID, "error", err)
+		c.JSON(500, gin.H{"error": "Failed to create job"})
+		return
+	}
+	if job.MergeStatus == "pending" {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			defer cancel()
+			if err := h.multiTrackProcessor.ProcessMultiTrackJob(ctx, jobID); err != nil {
+				logger.Error("Multi-track merge failed", "job_id", jobID, "error", err)
+			}
+		}()
+	}
+	c.JSON(http.StatusOK, job)
 }
 
 // @Summary Get multi-track merge status
@@ -722,7 +770,10 @@ func (h *Handler) SubmitJob(c *gin.Context) {
 	}
 
 	// Save file using FileService
-	uploadDir := h.config.UploadDir
+	uploadDir, ok := h.uploadDirectory(c)
+	if !ok {
+		return
+	}
 	filePath, err := h.fileService.SaveUpload(header, uploadDir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
@@ -867,7 +918,7 @@ func (h *Handler) GetTranscript(c *gin.Context) {
 	}
 
 	// Return empty transcript gracefully for non-completed jobs
-	if job.Status != models.StatusCompleted && job.Parameters.Task != "realtime" {
+	if job.Transcript == nil && job.Status != models.StatusCompleted && job.Parameters.Task != "realtime" {
 		c.JSON(http.StatusOK, gin.H{
 			"job_id":     job.ID,
 			"title":      job.Title,
@@ -1048,22 +1099,12 @@ func (h *Handler) StartTranscription(c *gin.Context) {
 	job.Diarization = requestParams.Diarize
 	job.Status = models.StatusPending
 
-	// Clear previous results for re-transcription
-	job.Transcript = nil
-	job.Summary = nil
+	// Keep the last successful transcript and summary visible on failure.
 	job.ErrorMessage = nil
-
-	// Save updated job
-	if err := h.jobRepo.Update(c.Request.Context(), job); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update job"})
-		return
-	}
-
-	// Enqueue job for transcription
-	if err := h.taskQueue.EnqueueJob(jobID); err != nil {
+	if err := h.taskQueue.EnqueuePrepared(jobID, func() error {
+		return h.jobRepo.PrepareTranscription(c.Request.Context(), job)
+	}); err != nil {
 		logger.Error("Failed to enqueue job", "job_id", jobID, "error", err)
-		_ = h.jobRepo.UpdateStatus(context.Background(), jobID, models.StatusFailed)
-		_ = h.jobRepo.UpdateError(context.Background(), jobID, err.Error())
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": err.Error()})
 		return
 	}
@@ -1099,6 +1140,10 @@ func (h *Handler) getJobForTranscription(c *gin.Context, jobID string) (*models.
 		return nil, err
 	}
 
+	if job.MergeStatus == "pending" || job.MergeStatus == "processing" {
+		c.JSON(http.StatusConflict, gin.H{"error": "Wait for multi-track audio merging to finish"})
+		return nil, fmt.Errorf("audio merge in progress")
+	}
 	// Allow transcription for uploaded, completed, and failed jobs (re-transcription)
 	if job.Status != models.StatusUploaded && job.Status != models.StatusCompleted && job.Status != models.StatusFailed {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot start transcription: job is currently processing or pending"})
@@ -1388,7 +1433,7 @@ func (h *Handler) UpdateTranscriptionTitle(c *gin.Context) {
 	}
 
 	job.Title = &body.Title
-	if err := h.jobRepo.Update(c.Request.Context(), job); err != nil {
+	if err := h.jobRepo.UpdateTitle(c.Request.Context(), jobID, body.Title); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update title"})
 		return
 	}
@@ -1434,7 +1479,7 @@ func (h *Handler) DeleteTranscriptionJob(c *gin.Context) {
 	}
 
 	// Prevent deletion of jobs that are currently processing
-	if job.Status == models.StatusProcessing {
+	if job.Status == models.StatusProcessing || job.MergeStatus == "pending" || job.MergeStatus == "processing" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete job that is currently processing"})
 		return
 	}
@@ -2815,7 +2860,10 @@ func (h *Handler) DownloadFromYouTube(c *gin.Context) {
 	}
 
 	// Create upload directory
-	uploadDir := h.config.UploadDir
+	uploadDir, ok := h.uploadDirectory(c)
+	if !ok {
+		return
+	}
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
 		return

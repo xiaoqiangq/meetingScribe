@@ -1,8 +1,10 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -39,12 +41,34 @@ func (h *Handler) AuthorizeCLI(c *gin.Context) {
 	})
 }
 
+// A CLI callback is a local listener, never a caller-selected external site.
+func validateCLICallback(raw string) (*url.URL, error) {
+	u, err := url.Parse(raw)
+	if err != nil || u == nil {
+		return nil, fmt.Errorf("invalid callback URL")
+	}
+	port, err := strconv.Atoi(u.Port())
+	if u.Scheme != "http" || u.User != nil || u.Fragment != "" || err != nil || port < 1024 || port > 65535 || (u.Hostname() != "localhost" && u.Hostname() != "127.0.0.1" && u.Hostname() != "::1") {
+		return nil, fmt.Errorf("CLI callback must be an HTTP loopback listener with an explicit port")
+	}
+	if u.Query().Has("token") || u.Query().Has("username") {
+		return nil, fmt.Errorf("invalid callback parameters")
+	}
+	return u, nil
+}
+
 // ConfirmCLIAuthorization generates a token and returns the redirect URL for the CLI
 // POST /api/auth/cli/authorize
 func (h *Handler) ConfirmCLIAuthorization(c *gin.Context) {
 	var req AuthorizeCLIRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	callbackURL, err := validateCLICallback(req.CallbackURL)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -66,15 +90,6 @@ func (h *Handler) ConfirmCLIAuthorization(c *gin.Context) {
 	token, err := h.authService.GenerateLongLivedToken(u)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-		return
-	}
-
-	// Construct redirect URL
-	// The CLI starts a local server and expects the token in the query params
-	// e.g. http://localhost:xxxx?token=...
-	callbackURL, err := url.Parse(req.CallbackURL)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid callback URL"})
 		return
 	}
 

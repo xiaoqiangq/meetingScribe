@@ -66,8 +66,17 @@ class SessionTest(unittest.TestCase):
     def test_invalid_pcm_and_duration_limit(self):
         for pcm in [b"", b"a", b"a"*64002]:
             with self.assertRaises(ProtocolError): self.session.push(0,pcm)
-        self.session.samples = 1800*16000
+        self.session.samples = 5400*16000
         with self.assertRaises(ProtocolError): self.session.push(0,self.pcm)
+
+    def test_ninety_minute_last_second_is_accepted(self):
+        self.session.samples = 5399*16000
+        self.session.offset = 5399
+        reply = self.session.push(0, self.pcm)
+        self.assertEqual(reply["duration"], 5400)
+        with self.assertRaises(ProtocolError):
+            self.session.push(1, self.pcm)
+        self.session.cancel()
 
     def test_final_language_survives_state_reset(self):
         self.session.push(0,self.pcm)

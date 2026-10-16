@@ -36,6 +36,8 @@ export function LiveTranscriptionPage() {
   const [activeDevice, setActiveDevice] = useState('');
   const [level, setLevel] = useState(0);
   const [inputSeconds, setInputSeconds] = useState(0);
+  const [maxDuration, setMaxDuration] = useState(5400);
+  const [limitReached, setLimitReached] = useState(false);
   const [pendingChunks, setPendingChunks] = useState(0);
   const analyser = useRef<AnalyserNode | null>(null);
   const session = useRef('');
@@ -166,7 +168,7 @@ export function LiveTranscriptionPage() {
     let disposed = false;
     const checkStatus = () => {
       void request('/status').then(data => {
-        if (!disposed) { setAvailable(data.available); setModelState(data.model_state || 'ready'); }
+        if (!disposed) { setAvailable(data.available); setModelState(data.model_state || 'ready'); if (Number.isFinite(data.max_duration) && data.max_duration > 0) setMaxDuration(Math.min(5400,data.max_duration)); }
       }).catch(() => { if (!disposed) setAvailable(false); });
     };
     checkStatus();
@@ -223,7 +225,7 @@ export function LiveTranscriptionPage() {
     await queue.current;
     setPhase('starting'); setError(''); setBlob(null); setResult(null);
     failure.current = false; sequence.current = 0; queued.current = 0;
-    setInputSeconds(0); setPendingChunks(0); setActiveDevice('');
+    setInputSeconds(0); setPendingChunks(0); setActiveDevice(''); setLimitReached(false);
     chunks.current = []; queue.current = Promise.resolve(); session.current = '';
     try {
       if (!window.isSecureContext || !navigator.mediaDevices) throw new Error(t('Microphone requires HTTPS or localhost.'));
@@ -246,9 +248,9 @@ export function LiveTranscriptionPage() {
       recorder.current = active;
       active.ondataavailable = event => { if (event.data.size) chunks.current.push(event.data); };
       active.start(1000);
-      const worklet = new AudioWorkletNode(context.current, 'meetingscribe-microphone-pcm');
+      const worklet = new AudioWorkletNode(context.current, 'meetingscribe-microphone-pcm', {processorOptions:{maxSamples:maxDuration*16000}});
       node.current = worklet;
-      worklet.port.onmessage = ({ data }) => { if (data.pcm) enqueue(data.pcm); };
+      worklet.port.onmessage = ({ data }) => { if (data.pcm) enqueue(data.pcm); if (data.limitReached) {setLimitReached(true); void finish();} };
       const mute = context.current.createGain(); mute.gain.value = 0;
       const source = context.current.createMediaStreamSource(stream.current);
       analyser.current = context.current.createAnalyser(); analyser.current.fftSize = 2048;
@@ -387,6 +389,9 @@ export function LiveTranscriptionPage() {
   const controls = <section className="glass-card rounded-xl p-5 space-y-4">
         <div className="flex flex-wrap justify-between gap-3"><strong>{t(statuses[phase])}</strong><span className={available && modelState !== 'ready' ? 'font-bold text-red-700 dark:text-red-300' : undefined}>{available ? t(modelState === 'ready' ? 'GPU models ready' : modelState === 'loading' ? 'Loading speech models…' : 'Speech models load when you start') : t('Realtime models are not ready. Existing recording and upload remain available.')}</span></div>
         {phase === 'starting' && <p role="status" className="text-sm font-bold text-red-700 dark:text-red-300">{t('Preparing speech models. Loading may take several minutes. Wait until Listening before speaking.')}</p>}
+        <p className="text-sm text-muted-foreground">{t('Maximum recording duration')}: {Math.floor(maxDuration/60)} {t('minutes')} · {t('Recording finishes and saves automatically at the limit.')}</p>
+        {phase === 'recording' && maxDuration-inputSeconds <= 300 && <p role="status" className="font-bold text-amber-700 dark:text-amber-300">{t('Recording time remaining')}: {clock(Math.max(0,maxDuration-inputSeconds))}</p>}
+        {limitReached && <p role="status" className="font-bold">{t('Recording limit reached. Audio capture has stopped; finishing and saving the transcript.')}</p>}
         <label className="block text-sm font-medium" htmlFor="live-microphone">{t('Microphone')}</label>
         <select id="live-microphone" className="w-full border rounded-lg px-3 py-2 bg-background" value={deviceId} disabled={busy} onChange={e=>setDeviceId(e.target.value)}>
           <option value="default">{t('System default microphone')}</option>

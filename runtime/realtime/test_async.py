@@ -33,6 +33,21 @@ class DelayedAligner:
 
 
 class AsyncTest(unittest.TestCase):
+    def test_receive_queue_enforces_ninety_minutes(self):
+        session = Session(Engine(), Assistant())
+        session.samples = 5399*16000
+        session.offset = 5399
+        processor = Processor(session)
+        processor.samples = 5399*16000
+        try:
+            processor.push(0, PCM)
+            with self.assertRaises(ProtocolError):
+                processor.push(1, PCM)
+            wait_for(lambda: processor.result()["sequence"] == 1)
+            self.assertEqual(processor.result()["duration"], 5400)
+        finally:
+            processor.control("cancel")
+
     def test_confirmed_text_and_next_audio_do_not_wait_for_alignment(self):
         aligner = DelayedAligner()
         session = Session(Engine(), Assistant(), aligner=aligner)

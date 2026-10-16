@@ -28,8 +28,10 @@ export class PCMResampler {
 
 if (typeof AudioWorkletProcessor !== 'undefined') {
   class MicrophonePCM extends AudioWorkletProcessor {
-    constructor() {
+    constructor(options = {}) {
       super();
+      this.maxSamples = options.processorOptions?.maxSamples || 5400 * 16000;
+      this.samples = 0;
       this.converter = new PCMResampler(sampleRate);
       this.pending = [];
       this.paused = false;
@@ -56,8 +58,16 @@ if (typeof AudioWorkletProcessor !== 'undefined') {
       if (!channels || !channels.length) return true;
       const mono = new Float32Array(channels[0].length);
       for (const channel of channels) channel.forEach((value, i) => { mono[i] += value / channels.length; });
-      this.pending.push(...this.converter.push(mono));
+      const values = this.converter.push(mono);
+      const remaining = this.maxSamples - this.samples;
+      this.pending.push(...values.slice(0, remaining));
+      this.samples += Math.min(values.length, remaining);
       while (this.pending.length >= 16000) this.emit(16000);
+      if (this.samples >= this.maxSamples) {
+        this.emit();
+        this.paused = true;
+        this.port.postMessage({ limitReached: true });
+      }
       return true;
     }
   }

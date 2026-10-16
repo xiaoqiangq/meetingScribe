@@ -45,3 +45,24 @@ test('Worklet emits exact one-second chunks and flushes the tail before pausing'
   processor.port.onmessage({ data: 'flush' });
   assert.ok(messages.length > count);
 });
+
+test('Worklet stops exactly at the configured limit and emits its final partial second', async () => {
+  let Processor;
+  const messages = [];
+  globalThis.AudioWorkletProcessor = class { constructor() { this.port = { postMessage: data => messages.push(data) }; } };
+  globalThis.sampleRate = 16000;
+  globalThis.registerProcessor = (_name, implementation) => { Processor = implementation; };
+  await import('../../../public/realtime-pcm.js?duration-boundary-test');
+  const processor = new Processor({processorOptions:{maxSamples:16001}});
+  const input = [[new Float32Array(128).fill(.5)]];
+  for (let i=0;i<200;i++) processor.process(input);
+  const chunks = messages.filter(message => message.pcm);
+  assert.equal(chunks.length,2);
+  assert.equal(chunks[0].pcm.byteLength,32000);
+  assert.equal(chunks[1].pcm.byteLength,2);
+  assert.equal(messages.filter(message=>message.limitReached).length,1);
+  assert.equal(messages.at(-1).limitReached,true);
+  processor.port.onmessage({data:'flush'});
+  assert.equal(messages.at(-1).flushed,true);
+  assert.equal(messages.filter(message => message.pcm).reduce((sum,message)=>sum+message.pcm.byteLength/2,0),16001);
+});

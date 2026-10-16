@@ -157,7 +157,7 @@ export function useMultiTrackUpload() {
             formData.append('aup', aupFile);
 
             files.forEach(file => {
-                formData.append('tracks', file);
+                formData.append('files', file);
             });
 
             const response = await fetch("/api/v1/transcription/upload-multitrack", {

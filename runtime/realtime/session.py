@@ -1,4 +1,5 @@
 """Bounded, ordered streaming sessions; no model or network dependencies."""
+from limits import MAX_DURATION_SECONDS
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -45,8 +46,8 @@ class Session:
             raise ProtocolError("Unexpected audio sequence; retry the missing chunk")
         if not pcm or len(pcm) % 2 or len(pcm) > 64000:
             raise ProtocolError("Expected at most two seconds of 16 kHz mono PCM16")
-        if self.samples + len(pcm) // 2 > 16000 * 1800:
-            raise ProtocolError("Session limit is 30 minutes; finish and save")
+        if self.samples + len(pcm) // 2 > 16000 * MAX_DURATION_SECONDS:
+            raise ProtocolError("Session limit is 90 minutes; finish and save")
         import numpy as np
         audio = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768
         advice = self.assistant.push(pcm) or dict(voiced=True, endpoint=False)

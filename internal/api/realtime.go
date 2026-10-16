@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -40,6 +41,10 @@ func realtimeURL() (string, error) {
 }
 
 func liveCall(c *gin.Context, path string, body []byte) (int, []byte, error) {
+	return liveCallContext(c.Request.Context(), path, body)
+}
+
+func liveCallContext(ctx context.Context, path string, body []byte) (int, []byte, error) {
 	base, err := realtimeURL()
 	if err != nil {
 		return 503, nil, err
@@ -48,7 +53,7 @@ func liveCall(c *gin.Context, path string, body []byte) (int, []byte, error) {
 	if path == "/status" {
 		method = "GET"
 	}
-	req, err := http.NewRequestWithContext(c.Request.Context(), method, base+path, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, method, base+path, bytes.NewReader(body))
 	if err != nil {
 		return 503, nil, err
 	}
@@ -124,35 +129,54 @@ func (h *Handler) StartRealtime(c *gin.Context) {
 			}
 		}
 	}()
-	code, data, err := liveCall(c, "/sessions", nil)
-	close(stopRenew)
-	<-renewDone
-	if err != nil || code != 200 {
-		h.taskQueue.ReleaseRealtime()
-		c.JSON(503, gin.H{"error": "Realtime models are unavailable or still loading"})
-		return
-	}
+	// Browser disconnects must not cancel the server-side loading lifecycle.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	code, data, err := liveCallContext(ctx, "/sessions", nil)
 	var result struct {
 		ID string `json:"id"`
 	}
-	if json.Unmarshal(data, &result) != nil || result.ID == "" {
-		h.taskQueue.ReleaseRealtime()
-		c.JSON(503, gin.H{"error": "Invalid session response"})
+	if err != nil || code != 200 || json.Unmarshal(data, &result) != nil || result.ID == "" || c.Request.Context().Err() != nil {
+		// Release only after the gateway confirms all GPU workers have stopped.
+		// A gateway outage keeps admission reserved while background retries recover.
+		go h.resetRealtimeStartup(stopRenew, renewDone)
+		c.JSON(503, gin.H{"error": "Realtime startup interrupted or unavailable; releasing models safely"})
 		return
 	}
 	h.liveSession = &liveSession{ID: result.ID, Owner: c.GetUint("user_id"), Touched: time.Now()}
 	if c.Query("autosave") == "1" {
 		if err := h.createLiveProject(c, h.liveSession, data); err != nil {
-			_, _, _ = liveCall(c, "/sessions/"+result.ID+"/cancel", nil)
 			h.liveSession.Finished = true
-			h.taskQueue.ReleaseRealtime()
+			go h.resetRealtimeStartup(stopRenew, renewDone)
 			c.JSON(503, gin.H{"error": err.Error()})
 			return
 		}
 		h.expireLiveProject(h.liveSession)
 		data = h.liveSession.Result
 	}
+	close(stopRenew)
+	<-renewDone
 	c.Data(200, "application/json", data)
+}
+
+// The CPU gateway's reset response is a quiescence acknowledgement, not merely
+// a browser cancellation. Fail closed if it cannot confirm worker termination.
+func (h *Handler) resetRealtimeStartup(stopRenew chan struct{}, renewDone <-chan struct{}) {
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		code, data, err := liveCallContext(ctx, "/reset", nil)
+		cancel()
+		var reply struct {
+			Reset bool `json:"reset"`
+		}
+		if err == nil && code == 200 && json.Unmarshal(data, &reply) == nil && reply.Reset {
+			close(stopRenew)
+			<-renewDone
+			h.taskQueue.ReleaseRealtime()
+			return
+		}
+		time.Sleep(30 * time.Second)
+	}
 }
 
 func (h *Handler) UpdateRealtime(c *gin.Context) {
@@ -313,7 +337,11 @@ func (h *Handler) SaveRealtime(c *gin.Context) {
 		c.JSON(200, gin.H{"id": s.SavedID})
 		return
 	}
-	path, err := h.fileService.SaveUpload(header, h.config.UploadDir)
+	uploadDir, ok := h.uploadDirectory(c)
+	if !ok {
+		return
+	}
+	path, err := h.fileService.SaveUpload(header, uploadDir)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to save recording"})
 		return

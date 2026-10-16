@@ -608,5 +608,12 @@
   "Contains speaker assignments needing review": "包含说话人待核对文字",
   "Loading speech models…": "正在加载语音模型…",
   "Speech models load when you start": "语音模型将在开始时加载",
-  "Preparing speech models. Loading may take several minutes. Wait until Listening before speaking.": "正在准备语音模型，加载可能需要几分钟。请等到显示“正在聆听”后再讲话。"
+  "Preparing speech models. Loading may take several minutes. Wait until Listening before speaking.": "正在准备语音模型，加载可能需要几分钟。请等到显示“正在聆听”后再讲话。",
+  "Local CLI callback": "本机 CLI 回调地址",
+  "Maximum recording duration": "单次录音时长上限",
+  "minutes": "分钟",
+  "Recording finishes and saves automatically at the limit.": "达到上限后自动结束并保存。",
+  "Recording time remaining": "剩余录音时间",
+  "Recording limit reached. Audio capture has stopped; finishing and saving the transcript.": "已达到录音上限，音频采集已停止，正在完成并保存转写。",
+  "CLI callback must be an HTTP loopback listener with an explicit port.": "CLI 回调必须是带明确端口的本机 HTTP 地址。"
 }

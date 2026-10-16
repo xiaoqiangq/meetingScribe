@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"scriberr/internal/config"
 	"scriberr/internal/database"
 	"scriberr/internal/models"
@@ -82,6 +83,9 @@ func TestRealtimeDurableProject(t *testing.T) {
 		t.Fatal("project missing")
 	}
 	path := h.liveSession.AudioPath
+	if filepath.Dir(path) != filepath.Join(dir, user.Username) {
+		t.Fatal("realtime recording must use its owner's upload directory")
+	}
 	defer os.Remove(path)
 	job := func() models.TranscriptionJob {
 		var j models.TranscriptionJob

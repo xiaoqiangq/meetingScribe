@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"scriberr/internal/config"
+	"scriberr/internal/database"
 	"scriberr/internal/models"
 	"scriberr/internal/repository"
+	"scriberr/internal/storage"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
@@ -235,9 +237,16 @@ func (s *Service) processFile(filePath string) {
 // uploadFile uploads the file using the existing pipeline logic
 func (s *Service) uploadFile(sourcePath, originalFilename string) error {
 	// Create upload directory
-	uploadDir := s.config.UploadDir
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		return fmt.Errorf("failed to create upload directory: %v", err)
+	if database.DB == nil {
+		return fmt.Errorf("dropzone account unavailable")
+	}
+	var owner models.User
+	if err := database.DB.Order("id asc").First(&owner).Error; err != nil || owner.Disabled {
+		return fmt.Errorf("dropzone account unavailable")
+	}
+	uploadDir, err := storage.EnsureUserUploads(context.Background(), database.DB, s.config.UploadDir, owner.ID)
+	if err != nil {
+		return err
 	}
 
 	// Generate unique filename
@@ -254,6 +263,7 @@ func (s *Service) uploadFile(sourcePath, originalFilename string) error {
 	// Create job record with "uploaded" status
 	job := models.TranscriptionJob{
 		ID:        jobID,
+		OwnerID:   owner.ID,
 		AudioPath: destPath,
 		Status:    models.StatusUploaded,
 		Title:     &originalFilename, // Use original filename as title

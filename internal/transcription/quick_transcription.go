@@ -12,6 +12,7 @@ import (
 	"scriberr/internal/database"
 	"scriberr/internal/models"
 	"scriberr/internal/repository"
+	"scriberr/internal/storage"
 	"scriberr/pkg/logger"
 	"strings"
 	"time"
@@ -73,8 +74,20 @@ func (q *QuickTranscriptionService) SubmitQuickJob(data io.Reader, filename stri
 	if q.enqueue == nil {
 		return nil, fmt.Errorf("transcription queue unavailable")
 	}
+	if len(owners) == 0 || owners[0] == 0 {
+		return nil, fmt.Errorf("authenticated upload owner unavailable")
+	}
+	owner := owners[0]
+	userDir, err := storage.EnsureUserUploads(context.Background(), database.DB, q.config.UploadDir, owner)
+	if err != nil {
+		return nil, err
+	}
+	dir := filepath.Join(userDir, "quick_transcriptions")
+	if err := storage.EnsureDirectory(dir); err != nil {
+		return nil, err
+	}
 	id := uuid.NewString()
-	path := filepath.Join(q.tempDir, id+filepath.Ext(filename))
+	path := filepath.Join(dir, id+filepath.Ext(filename))
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return nil, err
@@ -137,8 +150,32 @@ func (q *QuickTranscriptionService) ListQuickJobs(owner uint) ([]*QuickTranscrip
 }
 
 // One explicit regular file per invocation. Never remove directories or follow symlinks.
+// Both legacy scratch and account-owned quick scratch remain eligible for
+// exact-file expiry. Never derive cleanup roots from the requested file path.
+func (q *QuickTranscriptionService) quickUploadRoots(id string) []string {
+	roots := []string{q.tempDir}
+	if database.DB != nil {
+		var job models.TranscriptionJob
+		if err := database.DB.Unscoped().Where("id = ? AND is_quick = ?", id, true).First(&job).Error; err == nil {
+			userDir, err := storage.UserUploadPath(context.Background(), database.DB, q.config.UploadDir, job.OwnerID)
+			if err == nil {
+				dir := filepath.Join(userDir, "quick_transcriptions")
+				userInfo, userErr := os.Lstat(userDir)
+				dirInfo, dirErr := os.Lstat(dir)
+				if userErr == nil && dirErr == nil && userInfo.IsDir() && dirInfo.IsDir() && userInfo.Mode()&os.ModeSymlink == 0 && dirInfo.Mode()&os.ModeSymlink == 0 {
+					roots = append(roots, dir)
+				}
+			}
+		}
+	}
+	return roots
+}
+
 func (q *QuickTranscriptionService) cleanupRoots(id string) []string {
-	roots := []string{filepath.Join(q.config.TranscriptsDir, id), filepath.Join(q.tempDir, id+"_output")}
+	roots := []string{filepath.Join(q.config.TranscriptsDir, id)}
+	for _, dir := range q.quickUploadRoots(id) {
+		roots = append(roots, filepath.Join(dir, id+"_output"))
+	}
 	// Older adapters retained scratch outside their actual output directory.
 	for _, model := range []string{"whisperx", "sortformer", "sortformer_4spk", "pyannote", "parakeet", "canary", "funasr"} {
 		roots = append(roots, filepath.Join(filepath.Dir(q.config.TranscriptsDir), "temp", model, id))
@@ -222,9 +259,11 @@ func (q *QuickTranscriptionService) removeKnownFile(id, path string) error {
 		return err
 	}
 	allowed := q.cleanupRoots(id)
-	tempRoot, _ := filepath.Abs(q.tempDir)
-	if filepath.Dir(abs) == tempRoot && (strings.TrimSuffix(filepath.Base(abs), filepath.Ext(abs)) == id || filepath.Base(abs) == id+"_converted.wav") {
-		allowed = append(allowed, tempRoot)
+	for _, dir := range q.quickUploadRoots(id) {
+		tempRoot, _ := filepath.Abs(dir)
+		if filepath.Dir(abs) == tempRoot && (strings.TrimSuffix(filepath.Base(abs), filepath.Ext(abs)) == id || filepath.Base(abs) == id+"_converted.wav") {
+			allowed = append(allowed, tempRoot)
+		}
 	}
 	expected := ""
 	for _, root := range allowed {

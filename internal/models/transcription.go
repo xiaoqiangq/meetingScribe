@@ -154,8 +154,13 @@ func (tj *TranscriptionJob) BeforeCreate(tx *gorm.DB) error {
 			}
 		}
 	}
-	if info, err := os.Stat(tj.AudioPath); err == nil {
+	if info, err := os.Stat(tj.AudioPath); err == nil && !tj.IsMultiTrack {
 		tj.AudioBytes = info.Size()
+	}
+	if tj.IsMultiTrack && tj.AupFilePath != nil {
+		if info, err := os.Stat(*tj.AupFilePath); err == nil {
+			tj.AudioBytes += info.Size()
+		}
 	}
 	if owner, ok := RequestOwner(tx.Statement.Context); ok {
 		tj.OwnerID = owner
@@ -176,6 +181,7 @@ type User struct {
 	TokenVersion             uint      `json:"-" gorm:"not null;default:0"`
 	ID                       uint      `json:"id" gorm:"primaryKey"`
 	Username                 string    `json:"username" gorm:"uniqueIndex;not null;type:varchar(50)"`
+	UploadDirectory          *string   `json:"-" gorm:"uniqueIndex"`
 	Password                 string    `json:"-" gorm:"not null;type:varchar(255)"`
 	DefaultProfileID         *string   `json:"default_profile_id,omitempty" gorm:"type:varchar(36)"`
 	AutoTranscriptionEnabled bool      `json:"auto_transcription_enabled" gorm:"not null;default:false"`

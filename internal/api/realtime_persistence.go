@@ -15,7 +15,10 @@ import (
 	"github.com/google/uuid"
 	"scriberr/internal/database"
 	"scriberr/internal/models"
+	"scriberr/internal/storage"
 )
+
+const realtimeMaxDurationSeconds = 90 * 60
 
 // WAV makes each saved PCM prefix playable without depending on WebM finalization.
 func liveWAVHeader(size int64) []byte {
@@ -73,11 +76,12 @@ func (h *Handler) createLiveProject(c *gin.Context, s *liveSession, data []byte)
 	if err := h.liveQuota(c.Request.Context(), s.Owner, 44, true); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(h.config.UploadDir, 0700); err != nil {
+	uploadDir, err := storage.EnsureUserUploads(c.Request.Context(), database.DB, h.config.UploadDir, s.Owner)
+	if err != nil {
 		return err
 	}
 	id := uuid.NewString()
-	path := filepath.Join(h.config.UploadDir, id+".wav")
+	path := filepath.Join(uploadDir, id+".wav")
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		return err
@@ -159,8 +163,8 @@ func (h *Handler) appendLiveAudio(c *gin.Context, s *liveSession, body []byte) e
 	if n != s.RecordedSequence {
 		return fmt.Errorf("unexpected audio sequence")
 	}
-	if s.AudioSize+int64(len(body)) > 32000*1800 {
-		return fmt.Errorf("recording limit is 30 minutes")
+	if s.AudioSize+int64(len(body)) > 32000*realtimeMaxDurationSeconds {
+		return fmt.Errorf("recording limit is 90 minutes")
 	}
 	if err = h.liveQuota(c.Request.Context(), s.Owner, int64(len(body)), false); err != nil {
 		return err

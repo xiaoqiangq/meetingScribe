@@ -59,6 +59,13 @@ func (m *MockJobRepository) ListByUser(ctx context.Context, userID uint, offset,
 	return args.Get(0).([]models.TranscriptionJob), args.Get(1).(int64), args.Error(2)
 }
 
+func (m *MockJobRepository) UpdateTitle(ctx context.Context, jobID, title string) error {
+	return m.Called(ctx, jobID, title).Error(0)
+}
+func (m *MockJobRepository) PrepareTranscription(ctx context.Context, job *models.TranscriptionJob) error {
+	return m.Called(ctx, job).Error(0)
+}
+
 func (m *MockJobRepository) UpdateTranscript(ctx context.Context, jobID string, transcript string) error {
 	args := m.Called(ctx, jobID, transcript)
 	return args.Error(0)

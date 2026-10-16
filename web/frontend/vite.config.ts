@@ -20,7 +20,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: { globIgnores: ['**/client-version.json'] },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['meetingscribe-favicon-v1-32.png', 'meetingscribe-favicon-v1-64.png', 'meetingscribe-apple-touch-v1-180.png'],
       manifest: {
         name: 'MeetingScribe',
         short_name: 'MeetingScribe',
@@ -33,14 +33,20 @@ export default defineConfig({
         id: 'scriberr-transcription',
         icons: [
           {
-            src: 'icon512_maskable.png',
+            src: 'meetingscribe-maskable-v1-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
           },
           {
-            src: 'icon512_rounded.png',
+            src: 'meetingscribe-icon-v1-512.png',
             sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'meetingscribe-icon-v1-192.png',
+            sizes: '192x192',
             type: 'image/png',
             purpose: 'any'
           }

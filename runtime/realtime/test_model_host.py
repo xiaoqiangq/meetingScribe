@@ -17,6 +17,12 @@ class ModelHostTest(unittest.TestCase):
         self.host.process = Mock()
         self.host.process.poll.return_value = None
 
+    def test_reset_acknowledges_worker_stop_and_new_duration_limit(self):
+        self.host._stop = Mock()
+        self.assertEqual(self.host.status()["max_duration"], 5400)
+        self.assertEqual(self.host.reset(), {"reset": True})
+        self.host._stop.assert_called_once()
+
     def test_status_never_loads_models(self):
         self.host._spawn = Mock()
         self.assertTrue(self.host.status()["available"])

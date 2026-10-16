@@ -1,4 +1,5 @@
 """Ordered inference queue: receiving PCM never waits for a model call."""
+from limits import MAX_DURATION_SECONDS
 from collections import deque
 from concurrent.futures import Future
 from copy import deepcopy
@@ -51,8 +52,8 @@ class Processor:
                 if not pcm or len(pcm) % 2 or len(pcm) > 64000:
                     raise ProtocolError("Invalid PCM16 audio")
                 samples = len(pcm)//2
-                if self.samples + samples > 16000*1800:
-                    raise ProtocolError("Session limit is 30 minutes")
+                if self.samples + samples > 16000*MAX_DURATION_SECONDS:
+                    raise ProtocolError("Session limit is 90 minutes")
                 if self.pending_samples + samples > self.max_pending_samples:
                     raise ProtocolError("Transcription is falling behind; finish and retain saved audio")
                 self.received += 1

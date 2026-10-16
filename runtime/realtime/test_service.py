@@ -19,6 +19,14 @@ class GatewayTest(unittest.TestCase):
         self.addCleanup(self.patch.stop)
         self.client = TestClient(service.app)
 
+    def test_reset_uses_gateway_lifecycle_not_model_forwarding(self):
+        self.host.reset.return_value = {"reset": True}
+        reply = self.client.post("/reset")
+        self.assertEqual(reply.status_code, 200)
+        self.assertEqual(reply.json(), {"reset": True})
+        self.host.reset.assert_called_once()
+        self.host.call.assert_not_called()
+
     def test_status_is_cold_but_startable_without_loading(self):
         reply = self.client.get("/status")
         self.assertEqual(reply.status_code, 200)
