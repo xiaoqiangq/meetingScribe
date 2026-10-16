@@ -1,26 +1,29 @@
-# MeetingScribe v0.1.0-rc.6 — On-demand GPU models and consistent realtime access
+# MeetingScribe v0.1.0-rc.7 — Speaker confirmation and recording reliability
 
-Realtime GPU models now load when a session starts. An always-on CPU gateway reports readiness without loading weights, reuses warm model workers, and exits their process group after five idle minutes. Heartbeats preserve active and paused sessions; a disconnected browser is cancelled after the inactivity grace period. Saved checkpoints remain available, but this is not resumable microphone capture.
-
-Cold-start requests have longer timeouts and renew GPU admission while loading. Recording starts after the models are ready. The page shows model state with red, bold guidance for on-demand loading and waiting until Listening before speaking. Uploaded-file transcription keeps its existing per-task loading behavior; it does not share model instances with realtime inference.
-
-The realtime page owns `/live`, including direct navigation, refresh, trailing slash and query parameters. Process liveness is now `/health/live`; update external probes that used the old path. Readiness remains `/health`.
-
-An independent Caddy HTTPS template forwards to the same application as HTTP, without forcing an HTTP redirect. See [HTTPS setup and migration](HTTPS.md). Internal IP certificates still require client trust; proxy deployment alone does not guarantee microphone access on every device. No certificate, private key or production configuration is included.
+- Unify person/name confirmation for uploaded recordings, realtime recordings and topic views, including manual confirmation, unlinking and consistent name validation. Live updates preserve open dialog edits. Realtime voiceprint name matching is not included.
+- Allow 90 minutes of captured realtime audio, excluding pauses, with a final warning and automatic finish/save at the limit.
+- Fix transcription retry/title update races, queue failure recovery, cold-start cancellation and GPU admission cleanup; restrict CLI callback destinations and repair multitrack upload/merge handling.
+- Store uploads in persistent per-user directories and provide a preview-first migration tool that retains source recordings.
+- Redesign the responsive Chinese/English login page; derive browser, mobile and PWA icons from the authoritative JPG logo.
 
 ## Validation and limits
 
-- 51 realtime Python tests, 62 frontend tests and targeted realtime API/queue checks passed locally. TypeScript, frontend and Linux amd64 builds passed.
-- Existing GPU deployment was verified, including cold start, warm reuse and idle unload. HTTP, HTTPS and localhost returned the same page and frontend assets after the route and loading-hint changes.
-- One realtime session at a time, up to 30 minutes. Microphone access requires HTTPS or localhost. Model environments and weights must be provisioned separately; see [realtime setup](REALTIME.md).
-- Fresh GPU installation, long-meeting performance, broad browser acceptance and reference-scored speaker accuracy remain pending. This is a pre-release.
+- Local validation passed: 55 realtime Python tests, 65 frontend tests, targeted Go API/queue tests, Go race checks for the reliability fixes, TypeScript, frontend and Linux amd64 builds. All Go packages and tests compiled.
+- The existing GPU deployment was checked after the application updates. HTTP and HTTPS served identical frontend assets; recorded data and business content were preserved.
+- One realtime session at a time, up to 90 minutes of captured audio. Microphone access requires HTTPS or localhost. Model environments and weights must be provisioned separately; see [realtime setup](REALTIME.md).
+- Realtime speaker labels and manual name confirmation are available. Automatic voiceprint name candidates for realtime recordings are not implemented.
+- A full 90-minute GPU recording, fresh GPU installation, broad browser acceptance and reference-scored speaker accuracy remain pending. This remains a pre-release.
 
-Updating VERSION starts the GitHub Actions candidate workflow. Verification, Compose and Docker checks must pass before the workflow creates the tag and publishes the Linux amd64 archive and SHA256SUMS. Package filenames retain compatible huiji-p identifiers and upstream Scriberr attribution. Weights, Python/CUDA environments, recordings, databases, voiceprints, credentials and private validation artifacts are excluded. Publication does not restart production.
+Updating VERSION starts the GitHub Actions candidate workflow. Verification, Compose and Docker checks must pass before it creates the tag and publishes the Linux amd64 archive and SHA256SUMS. Package filenames retain compatible huiji-p identifiers and upstream Scriberr attribution. Weights, Python/CUDA environments, recordings, databases, voiceprints, credentials and private validation artifacts are excluded. Publication does not restart production. User recording paths and migration precautions are documented in [data storage](DATA.md).
 
 ## 中文
 
-实时模型改为开始时按需加载，结束后空闲五分钟释放显存；短时间重启可复用模型。CPU 网关状态查询不加载权重，录音与有心跳的暂停保持模型可用。冷启动期间延长请求等待并续期 GPU 准入，模型准备完成后才开始采集；页面以红色加粗显示加载提示。
+- 上传录音、实时录音及主题页面统一“人物与姓名确认”，支持手动确认、解除关联和姓名一致性校验；实时更新保留打开弹窗中的修改。实时声纹姓名自动匹配尚未加入。
+- 实时录音支持累计采集 90 分钟（暂停不计入），接近上限提示，到达上限自动结束并保存。
+- 修复重新转写与标题修改的数据覆盖、队列失败恢复、冷启动取消及 GPU 准入释放；限制 CLI 回调目标，修复多轨上传与合并处理。
+- 上传文件按用户固定目录保存，提供默认预览、保留原录音的迁移工具。
+- 更新响应式中英文登录页；标签页、手机桌面和 PWA 图标统一由正式 JPG Logo 派生。
 
-HTTP、HTTPS 和 localhost 使用同一应用。`/live` 返回实时页面，存活检查迁至 `/health/live`；现有 `/health` 就绪检查保留。独立 HTTPS 模板不会强制跳转 HTTP，内网 IP 证书仍需设备信任。上传音频仍按任务加载模型，与实时实例不共用。
+已通过本地 55 项实时 Python 测试、65 项前端测试、Go API/队列定向检查、稳定性修复竞态检查及构建。现有 GPU 部署已核查，HTTP 与 HTTPS 前端资源一致，录音及业务数据保留。
 
-已有 GPU 部署、冷启动/复用/卸载、三个入口资源一致性及本地测试通过。全新 GPU 安装、长会议、多浏览器与参考答案准确率验收仍待完成，继续预发布。本次发布不更改线上运行状态。
+实时录音限制为累计采集 90 分钟，暂停不计入；当前仍为单个实时会话。麦克风需要 HTTPS 或 localhost。模型环境和权重需单独准备。尚未完成完整 90 分钟 GPU 连续录音、全新 GPU 安装、多浏览器及参考答案准确率验收，继续预发布。本次发布不重启线上服务。

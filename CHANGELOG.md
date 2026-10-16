@@ -2,6 +2,14 @@
 
 [简体中文](CHANGELOG.zh-CN.md)
 
+## v0.1.0-rc.7 — 2026-10-16
+
+- Unify person/name confirmation for uploaded recordings, realtime recordings and topic views, including manual confirmation, unlinking and consistent name validation. Live updates preserve open dialog edits. Realtime voiceprint name matching is not included.
+- Allow 90 minutes of captured realtime audio, excluding pauses, with a final warning and automatic finish/save at the limit.
+- Fix transcription retry/title update races, queue failure recovery, cold-start cancellation and GPU admission cleanup; restrict CLI callback destinations and repair multitrack upload/merge handling.
+- Store uploads in persistent per-user directories and provide a preview-first migration tool that retains source recordings.
+- Redesign the responsive Chinese/English login page; derive browser, mobile and PWA icons from the authoritative JPG logo.
+
 ## v0.1.0-rc.6 — 2026-10-08
 
 - Load realtime GPU models on demand behind a CPU gateway; reuse warm workers and release their process group after five idle minutes. Keep active and paused sessions alive through heartbeats.
