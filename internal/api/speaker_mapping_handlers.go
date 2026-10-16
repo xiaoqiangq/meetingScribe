@@ -126,20 +126,19 @@ func (h *Handler) UpdateSpeakerMappings(c *gin.Context) {
 		return
 	}
 
-	if job.Parameters.TopicMode {
-		names := map[string]string{}
-		for _, mapping := range req.Mappings {
-			if len(mapping.PersonID) > 100 || strings.TrimSpace(mapping.CustomName) == "" {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "人物 ID 或姓名无效"})
+	// Person/name consistency applies to live, ordinary and topic recordings.
+	names := map[string]string{}
+	for _, mapping := range req.Mappings {
+		if len(mapping.PersonID) > 100 || strings.TrimSpace(mapping.CustomName) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "人物 ID 或姓名无效"})
+			return
+		}
+		if mapping.PersonID != "" {
+			if previous, found := names[mapping.PersonID]; found && previous != mapping.CustomName {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "同一人物的姓名必须一致"})
 				return
 			}
-			if mapping.PersonID != "" {
-				if previous, found := names[mapping.PersonID]; found && previous != mapping.CustomName {
-					c.JSON(http.StatusBadRequest, gin.H{"error": "同一人物的姓名必须一致"})
-					return
-				}
-				names[mapping.PersonID] = mapping.CustomName
-			}
+			names[mapping.PersonID] = mapping.CustomName
 		}
 	}
 

@@ -1,9 +1,10 @@
 import { selectTopicLinks, type TopicLink } from "./topicLinks";
+import { createMeetingPersonId } from "./meetingPersonId";
 import { playSpeakerPreview } from "./speakerPreview";
 import { useInterfaceLanguage } from '@/i18n';
 import { t as translateUI } from "@/i18n";
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -127,11 +128,13 @@ const SpeakerRenameDialog: React.FC<SpeakerRenameDialogProps> = ({ open, onOpenC
         }
     }, [transcriptionId, getAuthHeaders, initialSpeakers]);
     // Initialize speaker mappings when dialog opens
+    const fetchOnOpen = useRef(fetchSpeakerMappings);
+    useEffect(() => { fetchOnOpen.current = fetchSpeakerMappings; }, [fetchSpeakerMappings]);
     useEffect(() => {
-        if (open && transcriptionId) {
-            fetchSpeakerMappings();
-        }
-    }, [open, transcriptionId, fetchSpeakerMappings]);
+        if (open && transcriptionId) void fetchOnOpen.current();
+        // New speakers arriving during a live meeting must not discard edits.
+        // Reopening the dialog loads the current full speaker list.
+    }, [open, transcriptionId]);
     const handleSpeakerNameChange = (originalSpeaker: string, customName: string) => {
         setSpeakerMappings(prev => {
             const next = { ...prev, [originalSpeaker]: customName };
@@ -150,7 +153,7 @@ const SpeakerRenameDialog: React.FC<SpeakerRenameDialogProps> = ({ open, onOpenC
             // Convert mappings to API format
             const mappingsArray = Object.entries(speakerMappings).map(([original_speaker, custom_name]) => ({
                 original_speaker,
-                custom_name,
+                custom_name: custom_name.trim(),
                 person_id: personIds[original_speaker] || undefined,
             }));
             const response = await fetch(`/api/v1/transcription/${transcriptionId}/speakers`, {
@@ -250,8 +253,17 @@ const SpeakerRenameDialog: React.FC<SpeakerRenameDialogProps> = ({ open, onOpenC
             return next;
         });
     };
+    const confirmManualName = (speaker: string) => {
+        const name = speakerMappings[speaker]?.trim();
+        if (!name) return;
+        confirmName(speaker, {person_id: personIds[speaker] || createMeetingPersonId(), name, cosine: 0});
+    };
+    const unlinkPerson = (speaker: string) => {
+        setPersonIds(prev => ({...prev, [speaker]: ''}));
+        setSpeakerMappings(prev => ({...prev, [speaker]: speaker}));
+    };
     const linkPeople = (left: string, right: string) => {
-        const id = personIds[left] || `meeting:${crypto.randomUUID()}`;
+        const id = personIds[left] || createMeetingPersonId();
         const rightId = personIds[right];
         const members = initialSpeakers.filter(s => s === left || s === right || (rightId && personIds[s] === rightId));
         setPersonIds(prev => { const next = { ...prev }; members.forEach(s => { next[s] = id; }); return next; });
@@ -270,8 +282,9 @@ const SpeakerRenameDialog: React.FC<SpeakerRenameDialogProps> = ({ open, onOpenC
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5"/>
-            {recommendations ? (initialSpeakers.some(s => s.startsWith('topic')) ? translateUI("Topic \u4EBA\u7269\u4E0E\u59D3\u540D\u786E\u8BA4") : translateUI("\u4EBA\u7269\u4E0E\u59D3\u540D\u786E\u8BA4")) : translateUI("\u4FEE\u6539\u89D2\u8272\u540D")}
+            {translateUI("人物与姓名确认")}
           </DialogTitle>
+          <DialogDescription>{translateUI('输入姓名或角色名，确认后点击保存。实时录音与上传音频使用相同的命名流程。')}</DialogDescription>
         </DialogHeader>
 
         {isLoading ? (<div className="flex items-center justify-center py-8">
@@ -282,6 +295,7 @@ const SpeakerRenameDialog: React.FC<SpeakerRenameDialogProps> = ({ open, onOpenC
                 <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
               </div>)}
 
+            {!recommendations?.speakers.some(row => row.scores.length > 0) && <p className="text-xs leading-relaxed text-muted-foreground">{translateUI('当前没有可用的声纹姓名候选，可手动输入并确认姓名。此操作不会启动额外的 GPU 匹配，也不会自动登记声纹。')}</p>}
             {speakers.length === 0 ? (<Card>
                 <CardContent className="pt-6 text-center text-muted-foreground">
                   <Users className="h-8 w-8 mx-auto mb-2 opacity-50"/>
@@ -296,9 +310,13 @@ const SpeakerRenameDialog: React.FC<SpeakerRenameDialogProps> = ({ open, onOpenC
                       <p>{row.status === 'suggested' ? (translateUI("\u63A8\u8350\uFF1A") + row.suggested_name + "") : row.status === 'insufficient_audio' ? translateUI("\u6E05\u6670\u8BED\u97F3\u4E0D\u8DB3\uFF0C\u6682\u4E0D\u63A8\u8350") : (translateUI("\u7B2C\u4E00\u59D3\u540D\u5019\u9009\uFF1A") + (row.scores[0]?.name || translateUI("\u6682\u65E0")) + translateUI("\uFF08\u672A\u786E\u8BA4\uFF0C\u8BF7\u5148\u8BD5\u542C\uFF09"))}</p>
                       <div className="flex flex-wrap gap-2">{row.windows.map((w, i) => <Button key={i} size="sm" variant="outline" onClick={() => void listen(w)}>{translateUI("\u8BD5\u542C")}{i + 1}</Button>)}</div>
                       <div className="flex flex-wrap gap-2">{row.scores.slice(0, 3).map(candidate => <Button key={candidate.person_id} size="sm" variant="outline" onClick={() => confirmName(speaker, candidate)}>{translateUI("\u786E\u8BA4")}{candidate.name}{translateUI("\uFF08\u76F8\u4F3C\u5EA6")}{candidate.cosine.toFixed(2)}）</Button>)}</div>
-                      {personIds[speaker] && <Button size="sm" variant="ghost" onClick={() => { setPersonIds(prev => ({ ...prev, [speaker]: '' })); setSpeakerMappings(prev => ({ ...prev, [speaker]: speaker })); }}>{translateUI("\u89E3\u9664\u4EBA\u7269\u5173\u8054 / \u64A4\u9500\u59D3\u540D")}</Button>}
+
                     </div>)}
                     <Input id={`speaker-${speaker}`} value={speakerMappings[speaker] || ''} onChange={(e) => handleSpeakerNameChange(speaker, e.target.value)} placeholder={translateUI("\u8F93\u5165\u59D3\u540D\u6216\u89D2\u8272\u540D\u79F0")} className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"/>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <Button type="button" size="sm" variant="outline" disabled={!speakerMappings[speaker]?.trim()} onClick={() => confirmManualName(speaker)}>{translateUI('确认姓名')}</Button>
+                      {personIds[speaker] && <><span className="text-xs text-muted-foreground">{translateUI('人物已关联，点击保存后生效')}</span><Button type="button" size="sm" variant="ghost" onClick={() => unlinkPerson(speaker)}>{translateUI('解除人物关联 / 撤销姓名')}</Button></>}
+                    </div>
                   </div>))}
               </div>)}
           </div>)}

@@ -253,7 +253,7 @@ export const AudioDetailView = function AudioDetailView({ audioId: propAudioId, 
                                                             {speakerMappings[id] || (id.startsWith('topic') ? id : (translateUI("\u8BF4\u8BDD\u4EBA ") + (index + 1) + ""))}
                                                         </span>))}
                                                     <Button variant="outline" size="sm" onClick={() => setSpeakerRenameOpen(true)} className="h-8 rounded-full gap-1.5">
-                                                        <Users className="h-3.5 w-3.5"/>{translateUI("\u4FEE\u6539\u89D2\u8272\u540D")}</Button>
+                                                        <Users className="h-3.5 w-3.5"/>{translateUI("人物与姓名确认")}</Button>
                                                 </div>)}
                                         </div>
 

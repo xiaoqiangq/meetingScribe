@@ -196,5 +196,9 @@
   "0使用默认值：项目数量和文件空间不限，录音使用系统默认配额。降低额度不删除已有项目，只限制新上传。": "0 uses defaults: unlimited projects and file storage, and the system audio quota. Lowering limits preserves existing projects and only restricts new uploads.",
   "空间按当前项目文件统计，不含共享模型和数据库。额度由管理员设置，达到上限后限制新上传；处理结果可能继续增长。": "Storage covers current project files and excludes shared models and the database. Admins set limits; reaching them restricts new uploads. Processing outputs may continue to grow.",
   "MeetingScribe icon": "MeetingScribe icon",
-  "MeetingScribe": "MeetingScribe"
+  "MeetingScribe": "MeetingScribe",
+  "输入姓名或角色名，确认后点击保存。实时录音与上传音频使用相同的命名流程。": "Enter a name or role, confirm it, then save. Live and uploaded recordings use the same naming workflow.",
+  "确认姓名": "Confirm name",
+  "人物已关联，点击保存后生效": "Person linked; save to apply.",
+  "当前没有可用的声纹姓名候选，可手动输入并确认姓名。此操作不会启动额外的 GPU 匹配，也不会自动登记声纹。": "No voiceprint name suggestions are available. Enter and confirm a name manually. This does not run additional GPU matching or enroll a voiceprint."
 }
