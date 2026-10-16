@@ -1,6 +1,8 @@
 # MeetingScribe Docker 部署
 
-[English](DEPLOY.en.md) · [原生安装](INSTALL.md) · [验收](VALIDATION.md)
+全新安装推荐 [自动安装入口](INSTALL.md)。下文用于手动部署及已有环境管理。
+
+[English](DEPLOY.en.md) · [原生安装](INSTALL.native.md) · [验收](VALIDATION.md)
 
 ## 部署入口
 
@@ -39,7 +41,7 @@ export WHISPERX_ENV=/app/whisperx-env
 python3 scripts/install_runtime_files.py --runtime "$WHISPERX_ENV"
 ```
 
-接着执行 [安装指南步骤 4–7](INSTALL.md#4-qwen-识别与对齐环境)，容器使用 `python3`（版本为 3.12），路径仍为 `/app/whisperx-env`；选择驱动兼容的 CUDA wheel。完成后：
+接着执行 [安装指南步骤 4–7](INSTALL.native.md#4-qwen-识别与对齐环境)，容器使用 `python3`（版本为 3.12），路径仍为 `/app/whisperx-env`；选择驱动兼容的 CUDA wheel。完成后：
 
 ```bash
 python3 scripts/check_runtime.py --runtime "$WHISPERX_ENV"

@@ -120,14 +120,17 @@ Restoring the global timeline does not merge speaker identities. The same numeri
 
 ## Installation
 
+On a Linux x86_64 NVIDIA host with Docker Compose 2.30+ and NVIDIA Container Toolkit:
+
 ```bash
 git clone https://github.com/xiaoqiangq/meetingScribe.git
 cd meetingScribe
+bash install.sh
 ```
 
-Authenticate with your GitHub account for this private repository. Follow the [complete installation guide](docs/INSTALL.en.md): prerequisites, frontend/server build, isolated Python runtimes, model downloads, runtime checks, startup and first-run configuration.
+The installer builds the app, installs model dependencies, downloads weights, checks readiness and starts the service. Open **http://localhost:8080**. No host Go, Node.js or Python setup is needed. See [Installation](docs/INSTALL.en.md) for prerequisites, first use and remote access.
 
-The verified deployment uses Linux and an NVIDIA A100. The source builds for Linux amd64. Fresh-host installation steps are a reference procedure, not a completed independent clean-machine acceptance test. There is no bundled desktop installer or guaranteed CPU-only Chinese pipeline.
+This installs the uploaded-recording workflow. Realtime transcription needs the [additional realtime service](docs/REALTIME.md). Fresh GPU installation still awaits end-to-end acceptance; macOS, Windows and CPU-only installation are not supported by this installer.
 
 ## Privacy and limitations
 
@@ -143,7 +146,7 @@ Scriberr's [MIT license](LICENSE) and copyright notice are retained. See [Attrib
 
 [Docker deployment](docs/DEPLOY.en.md) · [Deployment guide](docs/DEPLOY.en.md) · [Validation status](docs/VALIDATION.en.md) · [Release policy](docs/RELEASE.en.md) · [Changelog](CHANGELOG.md)
 
-Default Compose now builds MeetingScribe source. No stable release has passed fresh GPU acceptance yet. Model environments and weights are prepared separately. CI checks changes; tag workflows package reviewable candidates without deploying production.
+Default Compose now builds MeetingScribe source. No stable release has passed fresh GPU acceptance yet. The quick installer prepares model environments and weights automatically. CI checks changes; tag workflows package reviewable candidates without deploying production.
 
 ## Development / 开发与目录规则
 

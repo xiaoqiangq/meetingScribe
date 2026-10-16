@@ -161,21 +161,17 @@ ForcedAligner 字词时间]
 
 ## 安装入口
 
-推荐目标是 **Linux + NVIDIA GPU + Python 3.12**。目前实际部署在 A100 上；未宣称 Windows、macOS 或小显存 GPU 的完整链路已经验收。
+准备好 **Linux x86_64 + NVIDIA GPU、Docker Compose 2.30+ 和 NVIDIA Container Toolkit** 后：
 
 ```bash
 git clone https://github.com/xiaoqiangq/meetingScribe.git
 cd meetingScribe
+bash install.sh
 ```
 
-这是私有仓库，先用自己的 GitHub 账号认证。之后按 [逐步安装指南](docs/INSTALL.md) 完成：系统依赖 → 前端/Go 构建 → 独立 Python 环境 → 模型下载 → 运行检查 → 网页启动 → 首次管理员和模型配置。指南提供每一步命令、目录、成功条件和故障处理。
+脚本自动构建网站、安装模型依赖、下载权重、检查环境并启动。完成后打开 **http://localhost:8080**。宿主机无需安装 Go、Node.js 或 Python。机器准备、首次使用和远程访问见 [安装指南](docs/INSTALL.md)。
 
-| 验证范围 | 状态 |
-| --- | --- |
-| 网页及 Linux amd64 Go 构建 | 已验证 |
-| 已部署 A100 中文链路 | 已运行；文档与其配置核对 |
-| 安装脚本静态检查、dry-run 与目录检查 | 见安装指南验收说明 |
-| 在全新服务器从零安装 | 参考步骤，尚未完成独立端到端验收 |
+此入口安装上传录音转写流程；实时转写需要 [额外的实时服务](docs/REALTIME.md)。全新 GPU 主机的端到端安装验收仍待完成；此安装器不支持 macOS、Windows 或纯 CPU 安装。
 
 ## 使用与数据边界
 
@@ -185,7 +181,7 @@ cd meetingScribe
 
 ## 当前限制
 
-重叠、噪声、远距离收音和音色变化仍可能让一个人物被拆分或多个人物被混入同一标签。原生特征相似度不是身份概率；跨 topic 合并和姓名都需人工确认。尚无按用户容量配额、完整 GPU 调度及通用一键安装包。
+重叠、噪声、远距离收音和音色变化仍可能让一个人物被拆分或多个人物被混入同一标签。原生特征相似度不是身份概率；跨 topic 合并和姓名都需人工确认。尚无按用户容量配额、完整 GPU 调度及跨平台桌面安装包。
 
 ## 许可证与致谢
 
@@ -195,7 +191,7 @@ cd meetingScribe
 
 [Docker 部署](docs/DEPLOY.md) · [部署说明](docs/DEPLOY.md) · [验收状态](docs/VALIDATION.md) · [发布策略](docs/RELEASE.md) · [更新日志](CHANGELOG.zh-CN.md)
 
-默认 Compose 已构建MeetingScribe源码。当前尚无经过完整从零 GPU 验收的稳定发布；模型环境与权重需另外准备。CI 与 tag workflow 负责自动检查和候选打包，生产部署由管理员确认验收后执行。
+默认 Compose 已构建MeetingScribe源码。当前尚无经过完整从零 GPU 验收的稳定发布；自动安装入口负责准备模型环境与权重。CI 与 tag workflow 负责自动检查和候选打包，生产部署由管理员确认验收后执行。
 
 ## Development / 开发与目录规则
 

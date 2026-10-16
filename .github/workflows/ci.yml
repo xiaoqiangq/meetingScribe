@@ -27,6 +27,9 @@ jobs:
       - run: npm ci
         working-directory: web/frontend
       - run: bash scripts/verify.sh
+      - run: bash -n install.sh && bash install.sh --dry-run
+      - run: python -m unittest discover -s scripts -p 'test_setup_runtime.py'
+      - run: docker compose --env-file /dev/null -p meetingscribe-quickstart -f docker-compose.quickstart.yml config --quiet
       - run: docker compose config --quiet
       - run: docker build --tag huiji-p:ci --file Dockerfile.cuda .
       - uses: actions/upload-artifact@v4

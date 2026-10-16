@@ -1,6 +1,8 @@
 # Docker deployment
 
-[中文](DEPLOY.md) · [Native installation](INSTALL.en.md) · [Acceptance status](VALIDATION.en.md)
+For a new installation, use [the automatic installer](INSTALL.en.md). The commands below are for manual deployment and existing installations.
+
+[中文](DEPLOY.md) · [Native installation](INSTALL.native.en.md) · [Acceptance status](VALIDATION.en.md)
 
 The default Compose file now builds MeetingScribe from this repository. All four existing Compose entry points share the same configuration. Both Dockerfiles build a Linux CUDA application runtime.
 
@@ -30,7 +32,7 @@ export WHISPERX_ENV=/app/whisperx-env
 python3 scripts/install_runtime_files.py --runtime "$WHISPERX_ENV"
 ```
 
-Follow steps 4–7 of [the installation guide](INSTALL.en.md), using the container's Python 3.12 and `/app/whisperx-env` runtime path. Install a CUDA wheel compatible with your driver. Then:
+Follow steps 4–7 of [the installation guide](INSTALL.native.en.md), using the container's Python 3.12 and `/app/whisperx-env` runtime path. Install a CUDA wheel compatible with your driver. Then:
 
 ```bash
 python3 scripts/check_runtime.py --runtime "$WHISPERX_ENV"
